@@ -1,0 +1,8 @@
+#!/bin/sh -x
+USER=b1xxxxxx@sympatico.ca
+pty=`./pty-redir ./pppoe -I le0`
+if [ "X$pty" = "X" ]; then
+	echo >&2 "cannot start pppoe"
+	exit 1
+fi
+/usr/sbin/pppd $pty noipdefault defaultroute passive persist name $USER lcp-echo-interval 30
