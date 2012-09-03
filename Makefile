@@ -1,12 +1,24 @@
 #uncomment the following line to add checks for buggy ACs which send out
 #duplicate packets
+
+include ../config.mk
+include ../config.in
+
 #DEFINES= -DBUGGY_AC
 #use the following line for OpenBSD support
 #DEFINES= -DUSE_BPF
-DEFINES= 
+DEFINES=
 
 #CFLAGS= -Wall -pedantic -ansi -g $(DEFINES)
 CFLAGS= -Wall -pedantic -ansi -O2 $(DEFINES)
+
+ifeq ($(MPOE_ENABLE_FLAG),y)
+CFLAGS += -DMULTIPLE_PPPOE
+endif
+
+ifeq ($(CONFIG_NEW_WANDETECT),y)
+CFLAGS += -DNEW_WANDETECT
+endif
 
 #Linux support doesn't need extra libraries, but OpenBSD support
 #does.  If using OpenBSD, uncomment the following line:
@@ -15,13 +27,24 @@ CFLAGS= -Wall -pedantic -ansi -O2 $(DEFINES)
 
 VERSION= 0.3
 
-pppoe: pppoe.o
-	$(CC) -o pppoe pppoe.o $(LIBS)
+ifeq ($(CONFIG_SINGLE_PROCESS_PPPOE),y)
+pppoecd: pppoe2.o
+	$(CC) -o pppoecd pppoe2.o $(LIBS)
+else
+pppoecd: pppoe.o
+	$(CC) -o pppoecd pppoe.o $(LIBS)
+endif
 
-pppoe.o: pppoe.c
+all: pppoecd
 
-distro:
-	rm -rf pppoe-$(VERSION)
-	mkdir pppoe-$(VERSION)
-	cp README LICENSE pppoe.c Makefile README.BSD start pppoe-$(VERSION)
-	tar czvf pppoe-$(VERSION).tar.gz pppoe-$(VERSION)/*
+install: all
+	install -d $(INSTALLDIR)/usr/sbin
+	install -m 755 pppoecd $(INSTALLDIR)/usr/sbin
+	$(STRIP) $(INSTALLDIR)/usr/sbin/pppoecd
+ifeq ($(INCLUDE_IPV6_FLAG),y)
+	cd $(INSTALLDIR)/usr/sbin && rm -f pppoecdv6 && ln -s pppoecd pppoecdv6
+endif
+
+clean:
+	rm -f *.o pppoecd
+

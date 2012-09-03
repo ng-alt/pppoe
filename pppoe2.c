@@ -1,4 +1,5 @@
- /* pppoe, a PPP-over-Ethernet redirector
+/*
+ * pppoe, a PPP-over-Ethernet redirector
  * Copyright (C) 1999 Luke Stras <stras@ecf.toronto.edu>
  *
  *    This program is free software; you can redistribute it and/or modify
@@ -146,6 +147,7 @@ struct pppoe_tag {
 /*  added start Winster Chan 11/25/2005 */
 #define TAG_STRUCT_SIZE  sizeof(struct pppoe_tag)
 #define PPP_PPPOE_SESSION   "/tmp/ppp/pppoe_session"
+#define PPP_PPPOE2_SESSION   "/tmp/ppp/pppoe2_session"
 /*#define PPP_PPPOE_IFNAME    "/tmp/ppp/pppoe_ifname"*/
 /*  added end Winster Chan 11/25/2005 */
 
@@ -165,9 +167,15 @@ struct pppoe_tag {
 int opt_verbose = 0;   /* logging */
 int opt_fwd = 0;       /* forward invalid packets */
 int opt_fwd_search = 0; /* search for next packet when forwarding */
+#ifdef MULTIPLE_PPPOE
+#define log_file stderr
+#else
 FILE *log_file = NULL;
+#endif
 FILE *error_file = NULL;
-
+#ifdef MULTIPLE_PPPOE
+int ppp_ifunit = 0; /*  wklin added, 08/16/2007 */
+#endif
 pid_t sess_listen = 0, pppd_listen = 0; /* child processes */
 int disc_sock = 0, sess_sock = 0; /* PPPoE sockets */
 char src_addr[ETH_ALEN]; /* source hardware address */
@@ -184,11 +192,14 @@ typedef struct {
     char            *pPadStart; /* Start point of tag payload */
 } sPadxTag, *pPadxTag;
 /*  added end Winster Chan 11/25/2005 */
+#ifdef NEW_WANDETECT
+int bWanDetect = 0;/*  added by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
 
 /* Winster Chan debugtest */
 #define DEBUG_PRINT_PACKET  0
 #define DEBUG_SEND_PACKET   0
-#define BUFRING             40
+#define BUFRING             5 /* 40 */ /*  wklin modified, 08/13/2007 */
 #define DEBUG_PRINT         0
 #define PPPOE_DEBUG_FILE    "/tmp/ppp/pppoeDbg"
 FILE *fp0;
@@ -260,14 +271,14 @@ print_packet(struct pppoe_packet *p)
     switch((unsigned)ntohs(p->ethhdr.ether_type))
 #endif
     {
-    case ETH_P_PPPOE_DISC:
-	fprintf(log_file, "(PPPOE Discovery)\n");
-	break;
-    case ETH_P_PPPOE_SESS:
-	fprintf(log_file, "(PPPOE Session)\n");
-	break;
-    default:
-	fprintf(log_file, "(Unknown)\n");
+        case ETH_P_PPPOE_DISC:
+            fprintf(log_file, "(PPPOE Discovery)\n");
+            break;
+        case ETH_P_PPPOE_SESS:
+            fprintf(log_file, "(PPPOE Session)\n");
+            break;
+        default:
+            fprintf(log_file, "(Unknown)\n");
     }
 
     fprintf(log_file, "PPPoE header: \nver: 0x%01x type: 0x%01x code: 0x%02x "
@@ -277,23 +288,23 @@ print_packet(struct pppoe_packet *p)
 
     switch(p->code)
     {
-    case CODE_PADI:
-	fprintf(log_file, "(PADI)\n");
-	break;
-    case CODE_PADO:
-	fprintf(log_file, "(PADO)\n");
-	break;
-    case CODE_PADR:
-	fprintf(log_file, "(PADR)\n");
-	break;
-    case CODE_PADS:
-	fprintf(log_file, "(PADS)\n");
-	break;
-    case CODE_PADT:
-	fprintf(log_file, "(PADT)\n");
-	break;
-    default:
-	fprintf(log_file, "(Unknown)\n");
+        case CODE_PADI:
+            fprintf(log_file, "(PADI)\n");
+            break;
+        case CODE_PADO:
+            fprintf(log_file, "(PADO)\n");
+            break;
+        case CODE_PADR:
+            fprintf(log_file, "(PADR)\n");
+            break;
+        case CODE_PADS:
+            fprintf(log_file, "(PADS)\n");
+            break;
+        case CODE_PADT:
+            fprintf(log_file, "(PADT)\n");
+            break;
+        default:
+            fprintf(log_file, "(Unknown)\n");
     }
 
 #ifdef __linux__
@@ -302,85 +313,87 @@ print_packet(struct pppoe_packet *p)
     if (ntohs(p->ethhdr.ether_type) != ETH_P_PPPOE_DISC)
 #endif
     {
-	print_hex((unsigned char *)(p+1), ntohs(p->length));
-	return;
+        print_hex((unsigned char *)(p+1), ntohs(p->length));
+        return;
     }
 
 
     while (t < (struct pppoe_tag *)((char *)(p+1) + ntohs(p->length)))
     {
-	/* no guarantee in PPPoE spec that t is aligned at all... */
-	memcpy(&tag,t,sizeof(tag));
-	fprintf(log_file, "PPPoE tag:\ntype: %04x length: %04x ",
-		ntohs(tag.type), ntohs(tag.length));
-	switch(ntohs(tag.type))
-	{
-	case TAG_END_OF_LIST:
-	    fprintf(log_file, "(End of list)\n");
-	    break;
-	case TAG_SERVICE_NAME:
-	    fprintf(log_file, "(Service name)\n");
-	    break;
-	case TAG_AC_NAME:
-	    fprintf(log_file, "(AC Name)\n");
-	    break;
-	case TAG_HOST_UNIQ:
-	    fprintf(log_file, "(Host Uniq)\n");
-	    break;
-	case TAG_AC_COOKIE:
-	    fprintf(log_file, "(AC Cookie)\n");
-	    break;
-	case TAG_VENDOR_SPECIFIC:
-	    fprintf(log_file, "(Vendor Specific)\n");
-	    break;
-	case TAG_RELAY_SESSION_ID:
-	    fprintf(log_file, "(Relay Session ID)\n");
-	    break;
-	case TAG_SERVICE_NAME_ERROR:
-	    fprintf(log_file, "(Service Name Error)\n");
-	    break;
-	case TAG_AC_SYSTEM_ERROR:
-	    fprintf(log_file, "(AC System Error)\n");
-	    break;
-	case TAG_GENERIC_ERROR:
-	    fprintf(log_file, "(Generic Error)\n");
-	    break;
-	default:
-	    fprintf(log_file, "(Unknown)\n");
+        /* no guarantee in PPPoE spec that t is aligned at all... */
+        memcpy(&tag,t,sizeof(tag));
+        fprintf(log_file, "PPPoE tag:\ntype: %04x length: %04x ",
+            ntohs(tag.type), ntohs(tag.length));
+        switch(ntohs(tag.type))
+        {
+            case TAG_END_OF_LIST:
+                fprintf(log_file, "(End of list)\n");
+                break;
+            case TAG_SERVICE_NAME:
+                fprintf(log_file, "(Service name)\n");
+                break;
+            case TAG_AC_NAME:
+                fprintf(log_file, "(AC Name)\n");
+                break;
+            case TAG_HOST_UNIQ:
+                fprintf(log_file, "(Host Uniq)\n");
+                break;
+            case TAG_AC_COOKIE:
+                fprintf(log_file, "(AC Cookie)\n");
+                break;
+            case TAG_VENDOR_SPECIFIC:
+                fprintf(log_file, "(Vendor Specific)\n");
+                break;
+            case TAG_RELAY_SESSION_ID:
+                fprintf(log_file, "(Relay Session ID)\n");
+                break;
+            case TAG_SERVICE_NAME_ERROR:
+                fprintf(log_file, "(Service Name Error)\n");
+                break;
+            case TAG_AC_SYSTEM_ERROR:
+                fprintf(log_file, "(AC System Error)\n");
+                break;
+            case TAG_GENERIC_ERROR:
+                fprintf(log_file, "(Generic Error)\n");
+                break;
+            default:
+                fprintf(log_file, "(Unknown)\n");
+        }
+        if (ntohs(tag.length) > 0) {
+            switch (ntohs(tag.type))
+            {
+                case TAG_SERVICE_NAME:
+                case TAG_AC_NAME:
+                case TAG_SERVICE_NAME_ERROR:
+                case TAG_AC_SYSTEM_ERROR:
+                case TAG_GENERIC_ERROR: /* ascii data */
+                    buf = malloc(ntohs(tag.length) + 1);
+                    memset(buf, 0, ntohs(tag.length)+1);
+                    strncpy(buf, (char *)(t+1), ntohs(tag.length));
+                    buf[ntohs(tag.length)] = '\0';
+                    fprintf(log_file, "data (UTF-8): %s\n", buf);
+                    free(buf);
+                    break;
+
+                case TAG_HOST_UNIQ:
+                case TAG_AC_COOKIE:
+                case TAG_RELAY_SESSION_ID:
+                    fprintf(log_file, "data (bin): ");
+                    for (i = 0; i < ntohs(tag.length); i++)
+                        fprintf(log_file, "%02x", (unsigned)*((char *)(t+1) + i));
+                    fprintf(log_file, "\n");
+                    break;
+
+                default:
+                    fprintf(log_file, "unrecognized data\n");
+            }
+            t = (struct pppoe_tag *)((char *)(t+1)+ntohs(tag.length));
 	}
-	if (ntohs(tag.length) > 0)
-	    switch (ntohs(tag.type))
-	    {
-	    case TAG_SERVICE_NAME:
-	    case TAG_AC_NAME:
-	    case TAG_SERVICE_NAME_ERROR:
-	    case TAG_AC_SYSTEM_ERROR:
-	    case TAG_GENERIC_ERROR: /* ascii data */
-		buf = malloc(ntohs(tag.length) + 1);
-		memset(buf, 0, ntohs(tag.length)+1);
-		strncpy(buf, (char *)(t+1), ntohs(tag.length));
-		buf[ntohs(tag.length)] = '\0';
-		fprintf(log_file, "data (UTF-8): %s\n", buf);
-		free(buf);
-		break;
-
-	    case TAG_HOST_UNIQ:
-	    case TAG_AC_COOKIE:
-	    case TAG_RELAY_SESSION_ID:
-		fprintf(log_file, "data (bin): ");
-		for (i = 0; i < ntohs(tag.length); i++)
-		    fprintf(log_file, "%02x", (unsigned)*((char *)(t+1) + i));
-		fprintf(log_file, "\n");
-		break;
-
-	    default:
-		fprintf(log_file, "unrecognized data\n");
-	    }
-	t = (struct pppoe_tag *)((char *)(t+1)+ntohs(tag.length));
     }
 }
 
 /*  added start, Winster Chan, 06/26/2006 */
+#ifndef MULTIPLE_PPPOE
 /**************************************************************************
 ** Function:    addr_itox()
 ** Description: Convert the <int> address value getting from file to
@@ -397,7 +410,7 @@ static void addr_itox(unsigned char *daddr, int *saddr, int convlen)
     for (i = 0; i < convlen; i++)
         daddr[i] = (unsigned char)saddr[i];
 }
-
+#endif
 /**************************************************************************
 ** Function:    pptp_pppox_open()
 ** Description: Open socket to kernel pppox driver, and open ppp device
@@ -407,6 +420,29 @@ static void addr_itox(unsigned char *daddr, int *saddr, int convlen)
 **************************************************************************/
 void pptp_pppox_open(int *poxfd, int *pppfd)
 {
+#ifdef MULTIPLE_PPPOE
+    /* Open socket to pppox kernel module */
+    
+    *poxfd = socket(AF_PPPOX,SOCK_STREAM,PX_PROTO_OE);
+    if (*poxfd >= 0) 
+    {
+        /* Open ppp device */
+        *pppfd = open("/dev/ppp", O_RDWR);
+	    if (*pppfd < 0) 
+	    { /* on error */
+	        fprintf(stderr, "pppoe: error opening pppfd.\n");
+	        close(*poxfd);
+	    } 
+	    else
+	        return;
+    } 
+    else 
+    {
+	    fprintf(stderr, "pppoe: error opening poxfd.\n");
+    }
+    *poxfd = -1;
+    *pppfd = -1;
+#else
     /* Open socket to pppox kernel module */
     *poxfd = socket(AF_PPPOX,SOCK_STREAM,PX_PROTO_OE);
     if (*poxfd >= 0) {
@@ -417,6 +453,7 @@ void pptp_pppox_open(int *poxfd, int *pppfd)
         *poxfd = -1;
         *pppfd = -1;
     }
+#endif
 }
 
 /**************************************************************************
@@ -430,21 +467,16 @@ void pptp_pppox_open(int *poxfd, int *pppfd)
 struct sockaddr_pppox pptp_pppox_get_info(void)
 {
     struct sockaddr_pppox sp_info;
-    /*  modified start pling 01/17/2007 */
-    /* char devName[] = "eth0"; */
     char devName[16];
     strcpy(devName, if_name);
-    /*  modified end pling 01/17/2007 */
-
     memset(&sp_info, 0, sizeof(struct sockaddr_pppox));
-
     sp_info.sa_family = AF_PPPOX;
     sp_info.sa_protocol = PX_PROTO_OE;
     sp_info.sa_addr.pppoe.sid = sessId;   /* PPPoE session ID */
     memcpy(sp_info.sa_addr.pppoe.remote, dstMac, ETH_ALEN); /* Remote MAC address */
-    memcpy(sp_info.sa_addr.pppoe.dev, devName, strlen(devName)); /* Remote MAC address */
+    memcpy(sp_info.sa_addr.pppoe.dev, devName, strlen(devName)); 
 
-    return (struct sockaddr_pppox)sp_info;
+    return sp_info;
 }
 
 /**************************************************************************
@@ -484,6 +516,12 @@ int  pptp_pppox_connect(int *poxfd, int *pppfd)
                     fprintf(stderr, "Couldn't attach to channel");
                     return -1;
                 }
+#ifdef MULTIPLE_PPPOE
+                if (ioctl(*pppfd, PPPIOCCONNECT, &ppp_ifunit) < 0) {
+                    fprintf(stderr, "Couldn't attach to PPP unit %d.\n", ppp_ifunit);
+                    return -1;
+                }
+#endif
                 flags = fcntl(*pppfd, F_GETFL);
                 if (flags == -1 || fcntl(*pppfd, F_SETFL, flags | O_NONBLOCK) == -1) {
                     fprintf(stderr, "Couldn't set /dev/ppp (channel) to nonblock");
@@ -544,224 +582,34 @@ void pptp_pppox_release(int *poxfd, int *pppfd)
 int
 open_interface(char *if_name, unsigned short type, char *hw_addr)
 {
-/* BSD stuff by mr */
-#ifdef USE_BPF
-  int fd;
-  struct ifreq ifr;
-  char bpf[16];
-  int i, opt;
-#ifdef SIMPLE_BPF
-  /* a simple BPF program which just grabs the packets of the given type */
-  /* by default use the clever BPF program - it works on my SPARC which
-     has the same endian as network order.  If someone can confirm that
-     the ordering also works on the opposite ending (e.g. ix86) I'll
-     remove the simple filter BPF program for good */
-  struct bpf_insn filt[] = {
-    BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 12),
-    BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0 /* fill-in */, 0, 1), /* check type */
-    BPF_STMT(BPF_RET+BPF_K, (u_int)-1),
-    BPF_STMT(BPF_RET+BPF_K, 0)
-  };
-#else
-  /* by default use the clever BPF program which filters out packets
-     originating from us in the kernel */
-  /* note that we split the 6-byte ethernet address into a 4-byte word
-     and 2-byte half-word to minimize the number of comparisons */
-  struct bpf_insn filt[] = {
-    BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 12),
-    BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0 /* fill-in */, 0, 5), /* check type */
-    /* check src address != our hw address */
-    BPF_STMT(BPF_LD+BPF_W+BPF_ABS, 6),
-    BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0 /* fill-in */, 0, 2), /* 4 bytes */
-    BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 10),
-    BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0 /* fill-in */, 1, 0), /* 2 bytes */
-    BPF_STMT(BPF_RET+BPF_K, (u_int)-1),
-    BPF_STMT(BPF_RET+BPF_K, 0)
-  };
-#endif /* SIMPLE_BPF */
-  struct bpf_program prog;
+    int optval = 1, rv;
+    struct ifreq ifr;
 
-  /* hunt for an open bpf */
-  for(i = 0; i < 10; i++) {  /* this max is arbitrary */
-    sprintf(bpf,"/dev/bpf%d",i);
-    if ((fd = open(bpf, O_RDWR)) >= 0)
-      break;
-  }
-  if (fd < 0) {
-    perror("pppoe: open(bpf)");
-    return -1;
-  }
-
-   /* try to increase BPF size if possible */
-   (void) ioctl(fd, BIOCSBLEN, &bpf_buf_size); /* try to set buffer size */
-   if (ioctl(fd, BIOCGBLEN, &bpf_buf_size) < 0) { /* but find out for sure */
-     perror("pppoe: bpf(BIOCGBLEN)");
-     return -1;
-   }
-
-
-  /* attach to given interface */
-  strncpy(ifr.ifr_name,if_name,sizeof(ifr.ifr_name));
-  if (ioctl(fd, BIOCSETIF, &ifr) < 0) {
-    perror("pppoe: bpf(BIOCSETIF)");
-    return -1;
-  }
-
-  /* setup BPF */
-  opt = 1;
-  if (ioctl(fd, BIOCIMMEDIATE, &opt) < 0) {
-    perror("pppoe: bpf(BIOCIMMEDIATE)");
-    return -1;
-  }
-  if (ioctl(fd, BIOCGDLT, &opt) < 0) {
-    perror("pppoe: bpf(BIOCGDLT)");
-    return -1;
-  }
-  if (opt != DLT_EN10MB) {
-    fprintf(stderr, "pppoe: interface %s is not Ethernet!\n", if_name);
-    return -1;
-  }
-
-  /*************************************************************************
-   *
-   * WARNING - Really non-portable stuff follows.  This works on OpenBSD 2.5
-   * and may not work anywhere else.
-   *
-   * What's going on - there's no obvious user-level interface to determine
-   * the MAC address of a network interface in BSD that I know of.  (If
-   * anyone has an idea, please let me know.)  What happens here is that we
-   * dig around in the kernel symbol list to find its list of interfaces,
-   * walk through the list to find the interface we are interested in and
-   * then we can (inobviously) get the ethernet info from that.
-   * I don't like this solution, but it's the best I've got at this point.
-   *
-   *************************************************************************/
-
-  {
-    kvm_t *k;
-    struct nlist n[2];
-    struct ifnet_head ifhead;
-    struct ifnet intf;
-    unsigned long v;
-    char ifn[IFNAMSIZ+1];
-    struct arpcom arp;
-
-    k = kvm_open(NULL,NULL,NULL,O_RDONLY,"pppoe");
-    if (k == NULL) {
-      fprintf(stderr, "pppoe: failed to open kvm\n");
-      return -1;
+    if ((rv = socket(PF_INET, SOCK_PACKET, htons(type))) < 0) {
+        perror("pppoe: socket");
+        return -1;
     }
-    n[0].n_name = "_ifnet";
-    n[1].n_name = NULL;
-    if (kvm_nlist(k,n) != 0) {
-      fprintf(stderr, "pppoe: could not find interface list\n");
-      kvm_close(k);
-      return -1;
+
+    if (setsockopt(rv, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval)) < 0) {
+        perror("pppoe: setsockopt");
+        return -1;
     }
-    if (kvm_read(k,n[0].n_value,(void *)&ifhead,sizeof(ifhead)) !=
-	sizeof(ifhead)) {
-      fprintf(stderr, "pppoe: could not read ifnet_head structure\n");
-      kvm_close(k);
-      return -1;
+
+    if (hw_addr != NULL) {
+        strncpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name));
+
+        if (ioctl(rv, SIOCGIFHWADDR, &ifr) < 0) {
+            perror("pppoe: ioctl(SIOCGIFHWADDR)");
+            return -1;
+        }
+
+        if (ifr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
+            fprintf(error_file, "pppoe: interface %s is not Ethernet!\n", if_name);
+            return -1;
+        }
+        memcpy(hw_addr, ifr.ifr_hwaddr.sa_data, sizeof(ifr.ifr_hwaddr.sa_data));
     }
-    v = (unsigned long)(ifhead.tqh_first);
-    while(v != 0) {
-      if (kvm_read(k,v,(void *)&intf,sizeof(intf)) != sizeof(intf)) {
-	fprintf(stderr, "pppoe: could not read ifnet structure\n");
-	kvm_close(k);
-	return -1;
-      }
-      strncpy(ifn,intf.if_xname,IFNAMSIZ);
-      ifn[IFNAMSIZ] = '\0';
-      if (strcmp(ifn,if_name) == 0)
-	/* found our interface */
-	break;
-      else
-	/* walk the chain */
-	v = (unsigned long)(intf.if_list.tqe_next);
-    }
-    if (v == 0) {
-      fprintf(stderr, "pppoe: cannot find interface %s in kernel\n",if_name);
-      kvm_close(k);
-      return -1;
-    }
-    /* since we have the right interface, and we determined previously
-       that it is an ethernet interface, reread from the same address into
-       a "struct arpcom" structure (which begins with a struct ifnet).
-       The ethernet address is located past the end of the ifnet structure */
-    if (kvm_read(k,v,(void *)&arp,sizeof(arp)) != sizeof(arp)) {
-      fprintf(stderr, "could not read arpcom structure\n");
-      kvm_close(k);
-      return -1;
-    }
-    /* whew! */
-    /* save a copy of this for ourselves */
-    memcpy(local_ether,arp.ac_enaddr,ETH_ALEN);
-    if (hw_addr)
-      memcpy(hw_addr,arp.ac_enaddr,ETH_ALEN); /* also copy if requested */
-    kvm_close(k);
-  }
-
-  /* setup BPF filter */
-  {
-    union { unsigned int i; unsigned char b[4]; } x;
-    union { unsigned short i; unsigned char b[2]; } y;
-
-    filt[1].k = type; /* set type of packet we are looking for */
-#ifndef SIMPLE_BPF
-    /* now setup our source address so it gets filtered out */
-    for(i = 0; i < 4; i++)
-      x.b[i] = local_ether[i];
-    for(i = 0; i < 2; i++)
-      y.b[i] = local_ether[i+4];
-    filt[3].k = x.i;
-    filt[5].k = y.i;
-#endif /* SIMPLE_BPF */
-  }
-  prog.bf_insns = filt;
-  prog.bf_len = sizeof(filt)/sizeof(struct bpf_insn);
-  if (ioctl(fd, BIOCSETF, &prog) < 0) {
-    perror("pppoe: bpf(BIOCSETF)");
-    return -1;
-  }
-
-  return fd;
-#else /* do regular linux stuff */
-  int optval = 1, rv;
-  struct ifreq ifr;
-
-  if ((rv = socket(PF_INET, SOCK_PACKET, htons(type))) < 0)
-  {
-      perror("pppoe: socket");
-      return -1;
-  }
-
-  if (setsockopt(rv, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval)) < 0)
-  {
-      perror("pppoe: setsockopt");
-      return -1;
-  }
-
-  if (hw_addr != NULL) {
-      strncpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name));
-
-      if (ioctl(rv, SIOCGIFHWADDR, &ifr) < 0)
-      {
-	  perror("pppoe: ioctl(SIOCGIFHWADDR)");
-	  return -1;
-      }
-
-      if (ifr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
-      {
-	  fprintf(error_file, "pppoe: interface %s is not Ethernet!\n", if_name);
-	  return -1;
-      }
-
-      memcpy(hw_addr, ifr.ifr_hwaddr.sa_data, sizeof(ifr.ifr_hwaddr.sa_data));
-
-  }
-  return rv;
-#endif /* USE_BPF / linux */
+    return rv;
 }
 
 /*  added start Winster Chan 12/02/2005 */
@@ -990,6 +838,54 @@ create_padt(struct pppoe_packet *packet, const char *src, const char *dst, unsig
 }
 /*  added end Winster Chan 12/02/2005 */
 
+/*  added start pling 09/09/2009 */
+int create_lcp_terminate_request
+(
+    struct pppoe_packet *packet,
+    const char *src, const char *dst,
+    unsigned short sess_id
+)
+{
+    int size;
+    struct pppoe_packet *ppp_data_start;
+    char ppp_data[] = 
+    {
+        0xc0, 0x21,     /* PPP Link Control Protocol */
+        0x05,           /* Code: Terminate request */
+        0x01,           /* Identifier */
+        0x00, 0x10,     /* Length: 16 */
+        0x55, 0x73, 0x65, 0x72, 0x20, /* "user " */
+        0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74 /* "request" */
+    };
+
+    if (packet == NULL)
+	    return 0;
+
+    size = sizeof(struct pppoe_packet) + sizeof(ppp_data);
+
+#ifdef __linux__
+    memcpy(packet->ethhdr.h_dest, dst, 6);
+    memcpy(packet->ethhdr.h_source, src, 6);
+    packet->ethhdr.h_proto = htons(ETH_P_PPPOE_SESS);
+#else
+    memcpy(packet->ethhdr.ether_dhost, dst, 6);
+    memcpy(packet->ethhdr.ether_shost, src, 6);
+    packet->ethhdr.ether_type = htons(ETH_P_PPPOE_SESS);
+#endif
+    packet->ver = 1;    
+    packet->type = 1;
+    packet->code = CODE_SESS;
+    packet->session = sess_id;
+    packet->length = htons(size - sizeof(struct pppoe_packet));
+
+    ppp_data_start = packet + 1;
+    memcpy(ppp_data_start, ppp_data, sizeof(ppp_data));
+
+    memset(((char *)packet) + size, 0, 14);
+    return size;
+}
+/*  added end pling 09/09/2009 */
+
 unsigned short fcstab[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
     0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
@@ -1059,21 +955,22 @@ void encode_ppp(int fd, unsigned char *buf, int len)
     unsigned char header[2], tail[2];
     int i,n;
     unsigned short fcs;
+#ifndef MULTIPLE_PPPOE
     time_t tm;
-
+#endif
     header[0] = FRAME_ADDR;
     header[1] = FRAME_CTL;
     fcs = pppfcs16(PPPINITFCS16, header, 2);
     fcs = pppfcs16(fcs, buf, len) ^ 0xffff;
     tail[0] = fcs & 0x00ff;
     tail[1] = (fcs >> 8) & 0x00ff;
-
+#ifndef MULTIPLE_PPPOE
     if (opt_verbose)
     {
 	time(&tm);
 	fprintf(log_file, "%sWriting to pppd: \n", ctime(&tm));
     }
-
+#endif
     n = 0;
     if (!first) {
 	ADD_OUT(FRAME_FLAG);
@@ -1103,8 +1000,10 @@ void encode_ppp(int fd, unsigned char *buf, int len)
 
     write(fd, out_buf, n);
 
+#ifndef MULTIPLE_PPPOE
     if (opt_verbose)
 	fprintf(log_file, "\n");
+#endif
 }
 
 int
@@ -1230,19 +1129,15 @@ create_sess(struct pppoe_packet *packet, const char *src, const char *dst,
 int
 send_packet(int sock, struct pppoe_packet *packet, int len, const char *ifn)
 {
-#ifdef USE_BPF
-  int c;
-  if ((c = write(sock,packet,len)) != len)
-    perror("pppoe: write (send_packet)");
-  return c;
-#else /* regular linux stuff */
     struct sockaddr addr;
     int c;
+#ifndef MULTIPLE_PPPOE
     time_t tm;
-
+#endif
     memset(&addr, 0, sizeof(addr));
     strcpy(addr.sa_data, ifn);
 
+#ifndef MULTIPLE_PPPOE
     if (opt_verbose == 1)
     {
 	time(&tm);
@@ -1250,7 +1145,7 @@ send_packet(int sock, struct pppoe_packet *packet, int len, const char *ifn)
 	print_packet(packet);
 	fputc('\n', log_file);
     }
-
+#endif
 
     if ((c = sendto(sock, packet, len, 0, &addr, sizeof(addr))) < 0) {
 	/* fprintf(error_file, "send_packet c[%d] = sendto(len = %d)\n", c, len); */
@@ -1258,96 +1153,80 @@ send_packet(int sock, struct pppoe_packet *packet, int len, const char *ifn)
     }
 
     return c;
-#endif /* USE_BPF */
 }
+#ifdef MULTIPLE_PPPOE
+int
+read_packet_nowait(int sock, struct pppoe_packet *packet, int *len)
+{
+    socklen_t fromlen = PACKETBUF;
 
-#ifdef USE_BPF
-/* return:  -1 == error, 0 == okay, 1 == ignore this packet */
-int read_bpf_packet(int fd, struct pppoe_packet *packet) {
-    /* Nastiness - BPF may return multiple packets in one fell swoop */
-    /* This makes select() difficult to use - you need to be ready to
-       clear out packets as they arrive */
-    static char *buf = NULL;
-    static int lastdrop = 0;
-    static int n = 0, off = 0;
-    struct bpf_hdr *h;
-
-    if (buf == NULL) {
-	if ((buf = malloc(bpf_buf_size)) == NULL) {
-	    perror("pppoe:malloc");
-	    return -1;
-	}
+    if (recvfrom(sock, packet, PACKETBUF, 0,
+             NULL /*(struct sockaddr *)&from*/, &fromlen) < 0) {
+        perror("pppoe: recv (read_packet_nowait)");
+        return -1;
     }
 
-    if (off < n) {
-	/* read out of previously grabbed buffer */
-	if (n-off < sizeof(struct bpf_hdr)) {
-	    fprintf(stderr, "BPF: not enough left for header:  %d\n", n-off);
-	    /* fprintf(error_file, "BPF: not enough left for header:  %d\n", n-off); */
-	    off = n = 0; /* force reread from BPF next time */
-	    return 1; /* try again */
-	}
-	h = (struct bpf_hdr *)&(buf[off]);
-	memcpy(packet,&(buf[off + h->bh_hdrlen]),h->bh_caplen);
-	off += BPF_WORDALIGN(h->bh_hdrlen + h->bh_caplen);
-	if (h->bh_caplen != h->bh_datalen) {
-	    fprintf(stderr, "pppoe: truncated packet: %d -> %d\n",
-		    h->bh_datalen, h->bh_caplen);
-	    /* fprintf(error_file, "BPF: truncated packet: %d -> %d\n",
-		    h->bh_datalen, h->bh_caplen); */
-	    return 1; /* try again */
-	}
-    } else {
-	struct bpf_stat s;
-	if (ioctl(fd,BIOCGSTATS,&s)) {
-	    perror("pppoe: BIOCGSTATS");
-	} else {
-	    if (s.bs_drop > lastdrop) {
-		fprintf(stderr, "BPF: dropped %d packets\n", s.bs_drop - lastdrop);
-		/* fprintf(error_file, "BPF: dropped %d packets\n", s.bs_drop - lastdrop); */
-		lastdrop = s.bs_drop;
+    return sock;
+}
+
+int
+read_packet(int sock, struct pppoe_packet *packet, int *len)
+{
+    socklen_t fromlen = PACKETBUF;
+    fd_set fdset;
+    struct timeval tma;
+
+    FD_ZERO(&fdset);
+    FD_SET(sock, &fdset);
+    tma.tv_usec = 0; 
+    tma.tv_sec = 3; /* wait for 3 seconds at most */
+    while(1) {
+        if (select(sock + 1, &fdset, (fd_set *) NULL, (fd_set *) NULL,
+		    &tma) <= 0) {
+            return -1; /* timeout or error */
+        } else if (FD_ISSET(sock, &fdset)) {
+            if (recvfrom(sock, packet, PACKETBUF, 0,
+                  NULL /*(struct sockaddr *)&from*/, &fromlen) < 0) {
+            	perror("pppoe: recv (read_packet)");
+                return -1;
+            } else if (memcmp(packet->ethhdr.h_dest,src_addr,sizeof(src_addr))!=0){
+		/* fprintf(stderr, "pppoe: received a packet not for me.\n");*/
+		continue;
 	    }
-	}
-	if ((n = read(fd,buf,bpf_buf_size)) < 0) {
-	    perror("pppoe: read (read_bpf_packet)");
-	    return -1;
-	}
-	if (n == 0)
-	    return 0; /* timeout on bpf - try again */
-	h = (struct bpf_hdr *)(buf);
-	memcpy(packet,&(buf[h->bh_hdrlen]),h->bh_caplen);
-	off = BPF_WORDALIGN(h->bh_hdrlen + h->bh_caplen);
+        }
+        return sock;
     }
-    /* need to filter packets here - interface could be in promiscuous
-       mode - we shouldn't see packets that we sent out thanks to BPF, but
-       a quick double-check here is unlikely to seriously impact performance
-       Once you know BPF is working, you can pop this out */
-    if (memcmp(packet->ethhdr.ether_shost,local_ether,6) == 0) {
-#ifdef SIMPLE_BPF
-	return 1; /* ignore this packet */
+}
+#endif
+#ifndef MULTIPLE_PPPOE
+/*  wklin added start, 08/10/2007 */
+int
+read_packet2(int sock, struct pppoe_packet *packet, int *len)
+{
+#if defined(__GNU_LIBRARY__) && __GNU_LIBRARY__ < 6
+    int fromlen = PACKETBUF;
 #else
-	/* with the bigger BPF program, we should never get here */
-	fprintf(stderr, "BPF program is broken\n");
-	exit(1);
-#endif /* SIMPLE_BPF */
+    socklen_t fromlen = PACKETBUF;
+#endif
+    time_t tm;
+
+    if (recvfrom(sock, packet, PACKETBUF, 0,
+                 NULL /*(struct sockaddr *)&from*/, &fromlen) < 0) {
+        perror("pppoe: recv (read_packet2)");
+        return -1;
     }
 
-    if (memcmp(packet->ethhdr.ether_dhost,MAC_BCAST_ADDR,6) == 0 ||
-	memcmp(packet->ethhdr.ether_dhost,local_ether,6) == 0)
-	return 0; /* I should look at this packet */
-    else {
-	print_packet(packet);
-	return 1; /* ignore this packet */
+    if (opt_verbose)
+    {
+        time(&tm);
+        fprintf(log_file, "Received packet at %s", ctime(&tm));
+        print_packet(packet);
+        fputc('\n', log_file);
     }
-}
 
-int is_bpf(int fd) {
-    /* is this socket tied to bpf? */
-    /* quick hack() - try a trivial bpf ioctl */
-    struct bpf_version v;
-    return (ioctl(fd,BIOCVERSION,&v) == 0);
+     return sock;
 }
-#endif /* USE_BPF */
+/*  wklin added end, 08/10/2007 */
 
 int
 read_packet(int sock, struct pppoe_packet *packet, int *len)
@@ -1363,15 +1242,6 @@ read_packet(int sock, struct pppoe_packet *packet, int *len)
     time(&tm);
 
     while(1) {
-#ifdef USE_BPF
-	{
-	    int j;
-	    if ((j = read_bpf_packet(sock, packet)) < 0)
-		return -1; /* read_bpf_packet() will report error */
-	    else if (j > 0)
-		continue; /* read a packet,  but not what we wanted */
-	}
-#else
 	/* wklin modified start, 01/10/2007 */
         fd_set fdset;
         struct timeval tm;
@@ -1389,15 +1259,7 @@ read_packet(int sock, struct pppoe_packet *packet, int *len)
 	        return -1;
 	    }
 	}
-#if 0
-	if (recvfrom(sock, packet, PACKETBUF, 0,
-		     NULL /*(struct sockaddr *)&from*/, &fromlen) < 0) {
-	    perror("pppoe: recv (read_packet)");
-	    return -1;
-	}
-#endif /* 0 */
 	/* wklin modified end, 01/10/2007 */
-#endif /* USE_BPF */
 	if (opt_verbose)
 	{
 	    fprintf(log_file, "Received packet at %s", ctime(&tm));
@@ -1408,53 +1270,108 @@ read_packet(int sock, struct pppoe_packet *packet, int *len)
 	return sock;
     }
 }
+#endif
 
 void sigchild(int src) {
     clean_child = 1;
 }
 
 void cleanup_and_exit(int status) {
+#ifdef MULTIPLE_PPPOE
+    if (pppfd > 0)
+        close(pppfd); 
+    if (poxfd > 0)
+        close(poxfd);
+    if (disc_sock > 0)
+        close(disc_sock);
+    if (sess_sock > 0)
+        close(sess_sock);
+    close(1);
+
+    exit(status);
+#else
     /*  modified start, Winster Chan, 06/26/2006 */
-    pptp_pppox_release(&poxfd, &pppfd);
-    close(pppfd); pppfd = -1;
-    close(poxfd); poxfd = -1;
+#ifdef NEW_WANDETECT
+    if (!bWanDetect) /*  added by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
+    {
+        pptp_pppox_release(&poxfd, &pppfd);
+        close(pppfd); pppfd = -1;
+        close(poxfd); poxfd = -1;
+    }
     /*  modified end, Winster Chan, 06/26/2006 */
 
     close(disc_sock);
-    close(sess_sock);
+#ifdef NEW_WANDETECT
+    if (!bWanDetect) /*  added by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
+        close(sess_sock);
     close(1);
 
-    if (pppd_listen > 0)
-    /*if (pppd_pid > 0)*/
-    {
-#ifdef __linux__
-        kill(pppd_listen, SIGTERM);
-#else
-        kill(SIGTERM, pppd_listen);
-#endif
-    }
-    if (sess_listen > 0)
-    /*if (sess_pid > 0)*/
-    {
-#ifdef __linux__
-        kill(sess_listen, SIGTERM);
-#else
-        kill(SIGTERM, sess_listen);
-#endif
-    }
-    /* system("killall pppoecd"); */ /*  added, Winster Chan, 06/26/2006
-                                      */ /*  wklin removed, 07/26/2007 */
     exit(status);
+#endif
 }
 
 void sigint(int src)
 {
-    /*  added start Winster Chan 12/02/2005 */
+#ifdef MULTIPLE_PPPOE
     struct pppoe_packet *packet = NULL;
     int pkt_size;
     FILE *fp;
 
-    if (disc_sock && (pppd_listen > 0)) {
+    /*  modified start pling 10/08/2009 */
+    /* Don't reference pppd_listen any more as this var is not used. */
+    /* if (disc_sock >= 0 && (pppd_listen >= 0)) { */
+    if (disc_sock > 0) {
+    /*  modified end pling 10/08/2009 */
+        /* allocate packet once */
+        packet = malloc(PACKETBUF);
+        assert(packet != NULL);
+
+        /* send PADT */
+        if ((pkt_size = create_padt(packet, src_addr, dst_addr, session)) == 0) {
+              fprintf(stderr, "pppoe: unable to create PADT packet\n");
+              if (packet != NULL) 
+                  free(packet);
+              exit(1);
+        }
+        if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
+            fprintf(stderr, "pppoe: unable to send PADT packet\n");
+            if (packet != NULL) 
+                free(packet);
+            exit(1);
+        }  else {
+            ; /* fprintf(stderr, "PPPOE: PADT sent*\n"); */
+        }
+    }
+
+    if (ppp_ifunit == 0)
+        fp = fopen(PPP_PPPOE_SESSION, "w+");
+    else
+        fp = fopen(PPP_PPPOE2_SESSION, "w+");
+
+    if (fp) {
+        /* Clear the PPPoE server MAC address and Session ID */
+        fprintf(fp, "%02x:%02x:%02x:%02x:%02x:%02x %d\n",
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0);
+        fclose(fp);
+    }
+
+    if (packet != NULL) 
+        free(packet);
+    cleanup_and_exit(1);
+#else
+    /*  added start Winster Chan 12/02/2005 */
+    struct pppoe_packet *packet = NULL;
+    int pkt_size;
+    FILE *fp;
+    time_t tm;
+
+    /*  modified start pling 10/08/2009 */
+    /* Don't reference pppd_listen any more as this var is not used. */
+    /* if (disc_sock && (pppd_listen > 0)) { */
+    if (disc_sock > 0) {
+    /*  modified end pling 10/08/2009 */
         /* allocate packet once */
         packet = malloc(PACKETBUF);
         assert(packet != NULL);
@@ -1468,7 +1385,8 @@ void sigint(int src)
             fprintf(stderr, "pppoe: unable to send PADT packet\n");
             /* exit(1); */
         }  else {
-            fprintf(stderr, "PPPOE: PADT sent*\n"); /*  wklin added, 07/26/2007 */
+            time(&tm);
+            fprintf(stderr, "PPPOE: PADT sent* %s\n",ctime(&tm)); /*  wklin added, 07/26/2007 */
         }
     }
     /*  added end Winster Chan 12/02/2005 */
@@ -1483,12 +1401,17 @@ void sigint(int src)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0);
         fclose(fp);
     }
+
+    if (packet != NULL) 
+        free(packet);
+
     /*  added end Winster Chan 12/05/2005 */
     cleanup_and_exit(1);
+#endif
 }
 
+/* added start James 11/12/2008 @new_internet_detection*/
 #ifdef NEW_WANDETECT
-/* added start James 11/12/2008 @new_internet_detection*/ 
 void sigint2(int src)
 {
     struct pppoe_packet *packet = NULL;
@@ -1499,6 +1422,26 @@ void sigint2(int src)
     /* allocate packet once */
     packet = malloc(PACKETBUF);
     assert(packet != NULL);
+
+    /*  added start pling 09/09/2009 */
+    /* Send LCP terminate request first, before PADT,
+     *  to make the PPP server terminates our session.
+     */
+    if ((pkt_size = create_lcp_terminate_request(packet, 
+                        src_addr, dst_addr, session)) == 0) {
+        fprintf(stderr, "pppoe: unable to create LCP terminate req packet\n");
+    } else {
+        sleep(1);
+        if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
+            fprintf(stderr, "pppoe: unable to send PADT packet\n");
+        } else {
+            time(&tm);
+            fprintf(stderr, "PPPOE: LCP Terminate Req sent* %s\n",ctime(&tm));
+            sleep(1);
+        }
+    }
+    /*  added end pling 09/09/2009 */
+
     /* send PADT */
     if ((pkt_size = create_padt(packet, src_addr, dst_addr, session)) == 0) {
             fprintf(stderr, "pppoe: unable to create PADT packet\n");
@@ -1524,16 +1467,19 @@ void sigint2(int src)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0);
         fclose(fp);
     }
+    if (packet != NULL) 
+        free(packet);
+
     /*  added end Winster Chan 12/05/2005 */
     cleanup_and_exit(1);
     
 }
-/*  added end James 11/12/2008 @new_internet_detection */ 
 #endif
+/*  added end James 11/12/2008 @new_internet_detection */ 
 
 void sess_handler(void) {
     /* pull packets of sess_sock and feed to pppd */
-    struct pppoe_packet *packet = NULL;
+    static struct pppoe_packet *packet = NULL;
     int pkt_size;
 
 #ifdef BUGGY_AC
@@ -1541,106 +1487,118 @@ void sess_handler(void) {
    duplicate packets */
 #define DUP_COUNT 10
 #define DUP_LENGTH 20
-    unsigned char dup_check[DUP_COUNT][DUP_LENGTH];
+    static unsigned char dup_check[DUP_COUNT][DUP_LENGTH];
     int i, ptr = 0;
 #endif /* BUGGY_AC */
 
+    if (!packet) {
 #ifdef BUGGY_AC
-    memset(dup_check, 0, sizeof(dup_check));
+        memset(dup_check, 0, sizeof(dup_check));
 #endif
+        /* allocate packet once */
+        packet = malloc(PACKETBUF);
+        assert(packet != NULL);
+    }
 
-    /* allocate packet once */
-    packet = malloc(PACKETBUF);
-    assert(packet != NULL);
-
-    /* fprintf(error_file, "sess_handler %d\n", getpid()); */ /*  wklin
-                                                                 removed,
-                                                                 07/27/2007 */
-    while(1)
+    /* while(1) */
     {
-	while(read_packet(sess_sock,packet,&pkt_size) != sess_sock)
-	    ;
-#ifdef __linux__
-	if (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) != 0)
+#ifdef MULTIPLE_PPPOE
+        if (read_packet_nowait(sess_sock,packet,&pkt_size) != sess_sock)
 #else
-	if (memcmp(packet->ethhdr.ether_shost, dst_addr, sizeof(dst_addr))
-	    != 0)
+	    if (read_packet2(sess_sock,packet,&pkt_size) != sess_sock)
 #endif
-	    continue; /* packet not from AC */
-	if (packet->session != session)
-	    continue; /* discard other sessions */
+                return;
 #ifdef __linux__
-	if (packet->ethhdr.h_proto != htons(ETH_P_PPPOE_SESS))
-	{
-	    fprintf(log_file, "pppoe: invalid session proto %x detected\n",
-		    ntohs(packet->ethhdr.h_proto));
-	    continue;
-	}
+	    if (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) != 0)
 #else
-	if (packet->ethhdr.ether_type != htons(ETH_P_PPPOE_SESS))
-	{
-	    fprintf(log_file, "pppoe: invalid session proto %x detected\n",
-		    ntohs(packet->ethhdr.ether_type));
-	    continue;
-	}
+	    if (memcmp(packet->ethhdr.ether_shost, dst_addr, sizeof(dst_addr)) != 0)
 #endif
-	if (packet->code != CODE_SESS) {
-	    fprintf(log_file, "pppoe: invalid session code %x\n", packet->code);
-	    continue;
-	}
+	        return; /* packet not from AC */
+#ifdef MULTIPLE_PPPOE
+        if (memcmp(packet->ethhdr.h_dest, src_addr, sizeof(src_addr)) != 0) {
+	    /* fprintf(stderr, "pppoe: received a session packet not for
+	     * me.\n"); */
+            return; 
+		}
+#endif        
+	    if (packet->session != session)
+	        return; /* discard other sessions */
+#ifdef __linux__
+	    if (packet->ethhdr.h_proto != htons(ETH_P_PPPOE_SESS))
+	    {
+	        fprintf(log_file, "pppoe: invalid session proto %x detected\n",
+		        ntohs(packet->ethhdr.h_proto));
+	        return;
+	    }
+#else
+	    if (packet->ethhdr.ether_type != htons(ETH_P_PPPOE_SESS))
+	    {
+	        fprintf(log_file, "pppoe: invalid session proto %x detected\n",
+		        ntohs(packet->ethhdr.ether_type));
+                return;
+	    }
+#endif
+	    if (packet->code != CODE_SESS) {
+	        fprintf(log_file, "pppoe: invalid session code %x\n", packet->code);
+	        return;
+	    }
 #if BUGGY_AC
-	/* we need to go through a list of recently-received packets to
-	   make sure the AC hasn't sent us a duplicate */
-	for (i = 0; i < DUP_COUNT; i++)
-	    if (memcmp(packet, dup_check[i], sizeof(dup_check[0])) == 0)
-		return; /* we've received a dup packet */
+    	/* we need to go through a list of recently-received packets to
+	       make sure the AC hasn't sent us a duplicate */
+	    for (i = 0; i < DUP_COUNT; i++)
+	        if (memcmp(packet, dup_check[i], sizeof(dup_check[0])) == 0)
+		        return; /* we've received a dup packet */
 #define min(a,b) ((a) < (b) ? (a) : (b))
-	memcpy(dup_check[ptr], packet, min(ntohs(packet->length),
-						 sizeof(dup_check[0])));
-	ptr = ++ptr % DUP_COUNT;
+	    memcpy(dup_check[ptr], packet, min(ntohs(packet->length),
+						    sizeof(dup_check[0])));
+	    ptr = ++ptr % DUP_COUNT;
 #endif /* BUGGY_AC */
 
-	encode_ppp(1, (unsigned char *)(packet+1), ntohs(packet->length));
+	    encode_ppp(1, (unsigned char *)(packet+1), ntohs(packet->length));
     }
 }
 
 void pppd_handler(void) {
   /* take packets from pppd and feed them to sess_sock */
   struct pppoe_packet *packet = NULL;
+#ifndef MULTIPLE_PPPOE
   time_t tm;
-  sPktBuf pktBuf[BUFRING];
+#endif
+  static sPktBuf pktBuf[BUFRING]; /*  wklin modified, use static */
   int nPkt = 0;
   /* unsigned char buf[PACKETBUF]; */
   int len, pkt_size;
   int i, bufRemain = 0, bufPos;
   unsigned char *currBufStart;
+  static int first_in = 1; /*  wklin added, 08/10/2007 */
 
-  /* fprintf(error_file, "pppd_handler %d\n", getpid()); */ /*  wklin
-                                                               removed,
-                                                               07/27/2007 */
-
-  /* Clear data buffer */
-  for (i=0; i<BUFRING; i++) {
-    memset(pktBuf[i].packetBuf, 0x0, sizeof(pktBuf[i].packetBuf));
+  if (first_in) {
+      first_in = 0;
+      /* Clear data buffer */
+      for (i=0; i<BUFRING; i++) {
+           memset(pktBuf[i].packetBuf, 0x0, sizeof(pktBuf[i].packetBuf));
+      }
   }
 
-  while(1) {
+  {
     /* Read in data buffer, Maximum size is 4095 bytes for evey one read() */
     if ((len = read(0, &(pktBuf[nPkt].packetBuf[(20+bufRemain)]), (4095-bufRemain))) < 0) {
       perror("pppoe");
       fprintf(error_file, "pppd_handler: read packet error len < 0\n");
-      exit(1);
+      /* exit(1); */
+      return;
     }
     if (len == 0) {
       /*  wklin modified start, 07/27/2007 */
       /* fprintf(error_file, "pppd_handler: read packet len = 0 bytes\n"); */
-      usleep(10000); /* sleep 10ms */
+      /* usleep(10000);*/ /* sleep 10ms */
       /*  wklin modified end, 07/27/2007 */
-      continue;
+      /* continue; */
+        return;
     }
     /* Append the length of previous remained data */
     len += bufRemain;
-
+#ifndef MULTIPLE_PPPOE
     if (opt_verbose == 1) {
         time(&tm);
         fprintf(log_file, "\n%sInput of %d bytes:\n", ctime(&tm), len);
@@ -1648,7 +1606,7 @@ void pppd_handler(void) {
         print_hex(pktBuf[nPkt].packetBuf, len);
         fputc('\n', log_file);
     }
-
+#endif
     bufPos = 0;
     packet = &(pktBuf[nPkt].packetBuf[0]);
     currBufStart = &(pktBuf[nPkt].packetBuf[20]);
@@ -1677,7 +1635,8 @@ void pppd_handler(void) {
         /* Send the completely composed packet */
         if (send_packet(sess_sock, packet, pkt_size, if_name) < 0) {
           fprintf(error_file, "pppd_handler: unable to send PPPoE packet\n");
-          exit(1);
+          /* exit(1); */
+          return;
         }
 
         /* Check if all the contents of buffer were processed */
@@ -1700,11 +1659,131 @@ void pppd_handler(void) {
 
   }
 }
+#ifdef MULTIPLE_PPPOE
+/*  Bob Guo added start 10/25/2007*/
+#define SERVER_RECORD_FILE	"/tmp/ppp/PPPoE_server_record"
+#define UPTIME_FILE			"/proc/uptime"
 
+static int checkServerRecord(unsigned char *pServerMac)
+{
+	FILE *fp=NULL;
+	char line[64];
+	char macAddr[32];
+	char *token;
+	int iTimeStamp = 0;
 
+	fp = fopen(SERVER_RECORD_FILE, "r");
+	if(fp == NULL)
+	{
+		goto _exit;
+	}
+
+	sprintf(macAddr, "%02x:%02x:%02x:%02x:%02x:%02x", *pServerMac, *(pServerMac+1), *(pServerMac+2), 
+													*(pServerMac+3), *(pServerMac+4), *(pServerMac+5));
+
+	while (fgets(line, sizeof(line), fp)) 
+	{
+		if( strncmp(line, macAddr, strlen(macAddr)) == 0)
+		{
+            /* the mac address exist in the list */
+			token = strtok(line, " ");
+			if(token == NULL)
+				goto _exit;
+			token = strtok(NULL, " ");
+			if(token)
+			{
+				iTimeStamp = atoi(token);
+			}
+			break;
+		}
+	}
+
+_exit:
+
+	if(fp)
+		fclose(fp);
+
+	return iTimeStamp;
+}
+
+static void updateServerRecord(unsigned char *pServerMac)
+{
+    FILE *fp=NULL, *fp_uptime=NULL;
+	char line[64];
+	char macAddr[32];
+	char uptime[32];
+    char *token;
+    int bFound;
+	
+	fp = fopen(SERVER_RECORD_FILE, "r+");
+	if(fp == NULL)
+	{
+		fp = fopen(SERVER_RECORD_FILE, "w+");
+		if(fp == NULL)
+			goto _exit;
+	}
+
+	sprintf(macAddr, "%02x:%02x:%02x:%02x:%02x:%02x", *pServerMac, *(pServerMac+1), *(pServerMac+2), 
+													*(pServerMac+3), *(pServerMac+4), *(pServerMac+5));
+													
+	fp_uptime = fopen(UPTIME_FILE, "r");
+	if(fp_uptime == NULL)
+		goto _exit;
+
+	if(fgets(line, sizeof(line), fp_uptime))
+	{
+		token = strtok(line, " .\t\n");
+		if(token == NULL)
+			goto _exit;
+        
+        int i = atoi(token);
+        sprintf(uptime, "%010d", i);
+	}
+
+	bFound = 0;
+
+	while (fgets(line, sizeof(line), fp)) 
+	{
+		if( strncmp(line, macAddr, strlen(macAddr)) == 0)
+		{
+            /* the mac address exist in the list */
+			bFound = 1;
+			break;
+		}
+	}
+	
+	if(bFound)
+	{
+		int ioffset = 0 - (strlen(line));
+		fseek(fp, ioffset, SEEK_CUR);
+	}
+	else
+	{
+		fseek(fp, 0, SEEK_END);
+	}
+	fprintf(fp, "%s %s\n", macAddr, uptime);
+
+_exit:
+	if(fp)
+		fclose(fp);
+	if(fp_uptime)
+		fclose(fp_uptime);
+
+}
+
+/*  Bob Guo added end 10/25/2007 */
+#endif
 int main(int argc, char **argv)
 {
     struct pppoe_packet *packet = NULL;
+#ifdef MULTIPLE_PPPOE
+    /*  Bob Guo added start 10/25/2007*/    
+    struct pppoe_packet *packet2 = NULL;
+    struct pppoe_packet *packet_temp = NULL;
+    int pkt2_size;
+    int iOldestTimeStamp, iTimeStamp;
+    /*  Bob Guo added end 10/25/2007*/
+#endif
     int pkt_size;
     /*  added start Winster Chan 12/05/2005 */
     FILE *fp;
@@ -1714,7 +1793,18 @@ int main(int argc, char **argv)
 
     int opt;
     int ret_sock; /*  wklin added, 12/27/2007 */
-    time_t tm; /*  wklin added, 12/27/2007 */
+
+    /*  wklin added start, 08/10/2007 */
+    fd_set allfdset;
+#ifndef MULTIPLE_PPPOE
+    struct timeval alltm;
+#endif
+    /*  wklin added end, 08/10/2007 */
+    time_t tm;
+
+#ifdef NEW_WANDETECT
+    bWanDetect = 0;/*  added by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
 
     /* initialize error_file here to avoid glibc2.1 issues */
      error_file = stderr;
@@ -1727,7 +1817,13 @@ int main(int argc, char **argv)
 
     /* parse options */
     /*  wklin modified, 03/27/2007, add service name option S */
-    while ((opt = getopt(argc, argv, "I:L:VE:F:S:")) != -1)
+#ifdef MULTIPLE_PPPOE
+    /* while ((opt = getopt(argc, argv, "I:L:VE:F:S:P:")) != -1) */
+    while ((opt = getopt(argc, argv, "I:L:VE:F:S:R:P:")) != -1)/*  modified by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#else
+    /* while ((opt = getopt(argc, argv, "I:L:VE:F:S:")) != -1) */
+    while ((opt = getopt(argc, argv, "I:L:VE:F:S:R:")) != -1)/*  modified by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
 	switch(opt)
 	{
 	case 'F': /* sets invalid forwarding */
@@ -1749,6 +1845,7 @@ int main(int argc, char **argv)
 		exit(1);
 	    }
 	    strcpy(if_name, optarg);
+#ifndef MULTIPLE_PPPOE
             /* wklin added start, 01/15/2007 */
             if (log_file != NULL)
                 fclose(log_file);
@@ -1757,6 +1854,7 @@ int main(int argc, char **argv)
                 exit(1);
             }
             /* wklin added end, 01/15/2007 */
+#endif
 	    break;
 
 	case 'L': /* log file */
@@ -1795,42 +1893,35 @@ int main(int argc, char **argv)
 	    if (service_name != NULL)
 		    free(service_name);
 	    if ((service_name=malloc(strlen(optarg)+1)) == NULL) {
+#ifdef MULTIPLE_PPPOE
+            fprintf(stderr, "pppoe: malloc error.\n");
+#else
 		    fprintf(stderr, "malloc\n");
+#endif
 		    exit(1);
 	    }
 	    strcpy(service_name, optarg);
 	    break;
         /*  wklin added end, 03/27/2007 */
+#ifdef MULTIPLE_PPPOE
+        /*  wklin added start, 08/16/2007, service name */
+    case 'P': /* ppp ifunit */
+        ppp_ifunit = 1;
+        break;
+        /*  wklin added end, 08/16/2007 */
+#endif
+        /*  add start, Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+        case 'R': /* wan detect purpose */
+#ifdef NEW_WANDETECT
+            bWanDetect = 1;
+#endif
+            break;
+        /*  add end, Max Ding, 04/23/2009 */
 	default:
 	    fprintf(stderr, "Unknown option %c\n", optopt);
 	    exit(1);
 	}
 
-    /*  added start, Winster Chan, 06/26/2006 */
-    /*  removed start pling 01/17/2007, not necessary */
-#if 0   
-    char poeIfName[32];
-    if (!(fp = fopen(PPP_PPPOE_IFNAME, "r"))) {
-        perror(PPP_PPPOE_IFNAME);
-    }
-    else {
-        if(fgets(buf, sizeof(buf), fp)) {
-            sscanf(buf, "%s", poeIfName);
-        }
-    }
-
-    if (if_name == 0)
-    {
-        /* if_name = "eth0"; */
-        if ((if_name=malloc(strlen(poeIfName+1))) == NULL) {
-            fprintf(stderr, "malloc\n");
-            exit(1);
-        }
-        strcpy(if_name, poeIfName);
-    }
-#endif
-    /*  removed end pling 01/17/2007, not necessary */
-    /*  added end, Winster Chan, 06/26/2006 */
     /* allocate packet once */
     packet = malloc(PACKETBUF);
     assert(packet != NULL);
@@ -1843,23 +1934,43 @@ int main(int argc, char **argv)
     signal(SIGUSR1, sigint2);/* added James 11/11/2008 @new_internet_detection*/
 #endif
 
-    /*  added start, Winster Chan, 06/26/2006 */
-    pptp_pppox_open(&poxfd, &pppfd);
-    /*  added end, Winster Chan, 06/26/2006 */
+#ifndef MULTIPLE_PPPOE
+#ifdef NEW_WANDETECT
+    if (!bWanDetect) /*  added by Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#endif
+    {
+        /*  added start, Winster Chan, 06/26/2006 */
+        pptp_pppox_open(&poxfd, &pppfd);
+        /*  added end, Winster Chan, 06/26/2006 */
+    }
+#endif
 
     if ((disc_sock = open_interface(if_name,ETH_P_PPPOE_DISC,src_addr)) < 0)
     {
-	fprintf(error_file, "pppoe: unable to create raw socket\n");
-	return 1;
+		fprintf(error_file, "pppoe: unable to create raw socket\n");
+#ifdef MULTIPLE_PPPOE
+        exit(1);
+#else
+		return 1;
+#endif
     }
+#ifdef MULTIPLE_PPPOE
+    /* initiate connection */
+    if (ppp_ifunit == 0)
+        fp = fopen(PPP_PPPOE_SESSION, "r"); 
+    else /* ifunit == 1 */
+	fp = fopen(PPP_PPPOE2_SESSION, "r");
 
+    if (fp) {
+#else
     /* initiate connection */
 
     /*  added start Winster Chan 12/05/2005 */
     if (!(fp = fopen(PPP_PPPOE_SESSION, "r"))) {
-        ; /* perror(PPP_PPPOE_SESSION);*/ /* wklin removed, 08/13/2007 */
+        ; /* perror(PPP_PPPOE_SESSION); */ /*  wklin removed, 08/13/2007 */
     }
     else {
+#endif
         unsigned int nMacAddr[ETH_ALEN];
         int nSessId, i;
         char cMacAddr[ETH_ALEN];
@@ -1896,15 +2007,28 @@ int main(int argc, char **argv)
           	        fprintf(stderr, "pppoe: unable to create PADT packet\n");
                     fclose(fp);
                     /*exit(1);*/
+#ifdef MULTIPLE_PPPOE
+                    exit(1);
+#else
                     cleanup_and_exit(1); /*  modified by EricHuang, 05/24/2007 */
+#endif
                 }
                 if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
                     fprintf(stderr, "pppoe: unable to send PADT packet\n");
                     fclose(fp);
+#ifdef MULTIPLE_PPPOE
+                    exit(1);
+#else
                     /*exit(1);*/
                     cleanup_and_exit(1); /*  modified by EricHuang, 05/24/2007 */
+#endif
                 } else {
-                    fprintf(stderr, "PPPOE: PADT sent\n"); /*  wklin added, 07/26/2007 */
+#ifdef MULTIPLE_PPPOE
+                    ; /* fprintf(stderr, "PPPOE: PADT sent\n"); */
+#else
+                    time(&tm);
+                    fprintf(stderr, "PPPOE: PADT sent %s\n",ctime(&tm)); /*  wklin added, 07/26/2007 */
+#endif
                 }
 
                 /*  modified start, Winster Chan, 06/26/2006 */
@@ -1918,7 +2042,11 @@ int main(int argc, char **argv)
         fclose(fp);
     }
     /*  added end Winster Chan 12/05/2005 */
+#ifdef MULTIPLE_PPPOE
+    memset(dst_addr, 0, sizeof(dst_addr));
 
+resend_padi:
+#endif
     /* start the PPPoE session */
     /*  wklin modified, 03/27/2007, add service name */
     if ((pkt_size = create_padi(packet, src_addr, service_name)) == 0) {
@@ -1931,17 +2059,20 @@ int main(int argc, char **argv)
 	exit(1);
     }
 
-    time(&tm); /*  wklin added, 12/27/2007, for storing PADI time */
+    time(&tm); /*  wklin added, 12/27/2007 */
     /* wait for PADO */
     while ((ret_sock = read_packet(disc_sock, packet, &pkt_size)) != disc_sock ||
 	   (packet->code != CODE_PADO )) { /*  wklin modified, 12/27/2007 */
+#ifndef MULTIPLE_PPPOE
 	fprintf(log_file, "pppoe: unexpected packet %x\n",
 		packet->code);
+#endif
 	/*  wklin added start, 12/27/2007 */
-	if (ret_sock == disc_sock && 
+	if (ret_sock == disc_sock &&
 		(packet->code == CODE_PADI || packet->code == CODE_PADR)) {
 	    if (time(NULL) - tm < 3)
-	       continue;
+		continue;
+
 	}
 	/*  wklin added end, 12/27/2007 */
 	/* wklin added start, 01/10/2007 */
@@ -1957,21 +2088,55 @@ int main(int argc, char **argv)
 		fprintf(stderr, "pppoe: unable to send PADI packet\n");
 		exit(1);
     	}
-	time(&tm); /*  added, 12/27/2007, for storing PADI time */
 	/* wklin added end, 01/10/2007 */
+	time(&tm); /*  wklin added, 12/27/2007 */
+#ifndef MULTIPLE_PPPOE
 	continue;
+#endif
     }
-
+#ifdef MULTIPLE_PPPOE
+    /*  Bob Guo added start 10/25/2007 */
+    
+    iOldestTimeStamp = checkServerRecord(packet->ethhdr.h_source);
+    if(iOldestTimeStamp)
+    {
+        packet2 = malloc(PACKETBUF);
+        if(packet2)
+        {
+            while( read_packet(disc_sock, packet2, &pkt2_size) == disc_sock )
+            {
+                if(packet2->code == CODE_PADO)
+                {
+                    iTimeStamp = checkServerRecord(packet2->ethhdr.h_source);
+                    if(iTimeStamp < iOldestTimeStamp)
+                    {
+                        packet_temp = packet;
+                        packet = packet2;
+                        packet2 = packet_temp;
+                        pkt_size = pkt2_size;
+                    }
+                }
+            }
+            free(packet2);
+        }
+    }
+    /*  Bob Guo added end 10/25/2007 */
+#endif
     /*  added start pling 12/20/2006 */
     /* Touch a file on /tmp to indicate PADO is received */
     if (1)
     {
         FILE *fp;
         struct sysinfo info;
+#ifdef MULTIPLE_PPPOE
+        /* fprintf(stderr, "PPPOE%d: PADO received\n", ppp_ifunit); */
+#else
         /*  wklin modified start, 07/26/2007 */
         /* system("echo \"DEBUG: PADO received\" > /dev/console"); */
-        fprintf(stderr, "PPPOE: PADO received\n");
+        time(&tm);
+        fprintf(stderr, "PPPOE: PADO received %s\n", ctime(&tm));
         /*  wklin modified end, 07/26/2007 */
+#endif
         if ((fp = fopen("/tmp/PADO", "w")) != NULL) {
             sysinfo(&info);  /* save current time in file */
             fprintf(fp, "%ld", info.uptime);
@@ -2009,11 +2174,20 @@ int main(int argc, char **argv)
 	exit(1);
     }
 
+    /*  wklin modified start, 07/31/2008 */
+    /* 0. Process only packets from our target pppoe server.
+     * 1. track the time when sending PADR.
+     * 2. If received PADO, resend PADR (needed?).
+     * 3. If retried for 5 times, send PADT.
+     * 4. If wait for more than 10 seconds after sending the previous PADR, 
+     *    send PADT.
+     */
+    time(&tm);
     /* wait for PADS */
 #ifdef __linux__
-    while (read_packet(disc_sock, packet, &pkt_size) != disc_sock ||
-	   (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) != 0) || 
-       (packet->code != CODE_PADS && packet->code != CODE_PADT)) /*  wklin modified, 08/09/2007 */
+    while ((ret_sock=read_packet(disc_sock, packet, &pkt_size)) != disc_sock ||
+            (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) != 0) || 
+            (packet->code != CODE_PADS && packet->code != CODE_PADT))
 #else
     while (read_packet(disc_sock, packet, &pkt_size) != disc_sock ||
 	   (memcmp(packet->ethhdr.ether_shost,
@@ -2021,35 +2195,62 @@ int main(int argc, char **argv)
 #endif
     {
         static int retried=0; /* wklin added, 01/26/2007 */
-        /*  wklin removed start, 08/09/2007 */
-	    /* if (packet->code != CODE_PADS && packet->code != CODE_PADT)
-	    fprintf(log_file, "pppoe: unexpected packet %x\n", packet->code);
-        */
-        /*  wklin removed end, 08/09/2007 */
 
-	    /* wklin modified start, 01/26/2007 */
-    	/* send PADR */
-        /*  wklin modified, 03/27/2007, add service name */
-        if ((pkt_size = create_padr(packet, src_addr, dst_addr, service_name)) == 0) {
-	    fprintf(stderr, "pppoe: unable to create PADR packet\n");
-            exit(1);
+        if (ret_sock != disc_sock) {
+            if (time(NULL)-tm > 10) {
+                retried = 0;
+                packet->code = CODE_PADT;  /* fake packet */
+                break;
+            }
+            else
+                continue;
         }
-        if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
-	    fprintf(stderr, "pppoe: unable to send PADR packet\n");
-            exit(1);
+        /* Resend PADR only if it's from our target pppoe server and 
+         * the code is PADO, otherwise ignore the received packet.
+         */
+        if (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) == 0) {
+            if (packet->code != CODE_PADO) { /* PADI? PADR? */
+                retried = 0;
+                packet->code = CODE_PADT; /* fake packet */
+                break;
+            }
+
+            /* Received PADO */
+            if (retried++ == 5) {
+                retried = 0;
+                packet->code = CODE_PADT; 
+                break;
+            }
+
+            /*  add start James 04/10/2009 */
+            /*if we recieve two PADO(from the same MAC) in 2 seconds, we only send one PADR.*/
+            if (time(NULL) - tm < 2)
+                continue;
+            /*  add end James 04/10/2009 */
+
+            /* send PADR */
+            /*  wklin modified, 03/27/2007, add service name */
+            if ((pkt_size = create_padr(packet, src_addr, dst_addr, service_name)) == 0) {
+	        fprintf(stderr, "pppoe: unable to create PADR packet\n");
+                exit(1);
+            }
+            if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
+	        fprintf(stderr, "pppoe: unable to send PADR packet\n");
+                exit(1);
+            }
+            time(&tm); /* track the time when sending PADR */
         }
-        if (retried++ == 5) {
-            retried = 0;
-            packet->code = CODE_PADT; 
-            break;
-        }
+        /* else.. packets not from target server */
+#ifndef MULTIPLE_PPPOE
         /* wklin modified end, 01/26/2007 */        
         continue;
-    }
+#endif
+    } /* end while waiting PADS */
+    /*  wklin modified end, 07/31/2008 */
 
     /*  James added start, 11/12/2008 @new_internet_detection */
 #ifdef NEW_WANDETECT
-    if (packet->code == CODE_PADS)
+    if (bWanDetect && packet->code == CODE_PADS)
     {
         FILE *fp;
         struct sysinfo info;
@@ -2065,10 +2266,14 @@ int main(int argc, char **argv)
 #endif
     /*  James added end, 11/12/2008 @new_internet_detection */
 
-
     if (packet->code == CODE_PADT) /* early termination */
     {
+#ifdef MULTIPLE_PPPOE
+        sleep(3);
+        goto resend_padi;
+#else
 	    cleanup_and_exit(0);
+#endif
     }
 
     session = packet->session;
@@ -2076,15 +2281,44 @@ int main(int argc, char **argv)
     /*  wklin added start, 07/31/2007 */
     if (session == 0) { /* PADS generic error */
         sleep(3); /* wait for 3 seconds and exit, retry */
+#ifdef MULTIPLE_PPPOE
+		goto resend_padi;
+#else
 	    cleanup_and_exit(0);
+#endif
     }
 
-    /* fprintf(stderr, "PPPOE: session id = 0x%08x\n", session); */
+    /*  add start, Max Ding, 04/23/2009 not use pppd to reduce memory usage */
+#ifdef NEW_WANDETECT
+    if (bWanDetect) 
+    {
+        /* Create PADT to end it */
+        sigint2(SIGUSR1);
+        /*cleanup_and_exit(0);*/
+    }
+#endif
+    /*  add end, Max Ding, 04/23/2009 */
+
+    time(&tm);
+#ifdef MULTIPLE_PPPOE
+    fprintf(stderr, "PPPOE%d: PADS received (%d) %s\n", 
+            ppp_ifunit, ntohs(session), ctime(&tm));
+    /*  Bob Guo added start 10/25/2007*/            
+    updateServerRecord(packet->ethhdr.h_source);
+    /*  Bob Guo added end 10/25/2007*/
+#else
+    fprintf(stderr, "PPPOE: session id = %d, %s\n", htons(session), ctime(&tm));
+#endif
+
     /*  wklin added end, 07/31/2007 */
 
     if ((sess_sock = open_interface(if_name,ETH_P_PPPOE_SESS,NULL)) < 0) {
     	fprintf(log_file, "pppoe: unable to create raw socket\n");
+#ifdef MULTIPLE_PPPOE
+        exit(1);
+#else
     	cleanup_and_exit(1);
+#endif
     }
 
     /*  added start, Winster Chan, 06/26/2006 */
@@ -2092,6 +2326,51 @@ int main(int argc, char **argv)
     sessId = packet->session;
 
     /* Connect pptp kernel module */
+
+#ifdef MULTIPLE_PPPOE
+    pptp_pppox_open(&poxfd, &pppfd);
+
+    if (poxfd == -1) {
+        fprintf(stderr, "pppoe: poxfd == -1\n");
+        cleanup_and_exit(1);
+        /*
+	    close(poxfd);
+	    exit(1);*/
+    }
+
+    if (pppfd == -1) {
+        fprintf(stderr, "pppoe: pppfd == -1\n");
+        cleanup_and_exit(1);
+        /*
+	    close(pppfd);
+	    exit(1);*/
+    }
+
+    if ( 0 > pptp_pppox_connect(&poxfd, &pppfd)) {
+        fprintf(stderr, "error connect to pppox\n");
+        cleanup_and_exit(1);
+        
+	
+	/*
+	exit(1);*/
+    }
+
+    if (ppp_ifunit == 0)
+        fp = fopen(PPP_PPPOE_SESSION, "w+");
+    else
+        fp = fopen(PPP_PPPOE2_SESSION, "w+");
+
+    if (fp) {
+        /* Save the PPPoE server MAC address and Session ID */
+        fprintf(fp, "%02x:%02x:%02x:%02x:%02x:%02x %d\n",
+            (unsigned char)(dst_addr[0]), (unsigned char)(dst_addr[1]),
+            (unsigned char)(dst_addr[2]), (unsigned char)(dst_addr[3]),
+            (unsigned char)(dst_addr[4]), (unsigned char)(dst_addr[5]),
+            (int)htons(session));
+        fclose(fp);
+    }
+#else
+
     /*  wklin modified start, 07/31/2007 */
     if ( 0 > pptp_pppox_connect(&poxfd, &pppfd))
         cleanup_and_exit(1);
@@ -2112,55 +2391,57 @@ int main(int argc, char **argv)
         fclose(fp);
     }
     /*  added end Winster Chan 12/05/2005 */
-
+#endif
     clean_child = 0;
     signal(SIGCHLD, sigchild);
 
-    /* all sockets are open fork off handlers */
-    if ((sess_listen = fork()) == 0)
-    {
-	    sess_handler(); /* child */
-    }
-    if (sess_listen < 0) {
-    	perror("pppoe: fork");
-    	cleanup_and_exit(1);
-    }
-    if ((pppd_listen = fork()) == 0)
-    {
-	    pppd_handler(); /* child */
-    }
-    if (pppd_listen < 0) {
-    	perror("pppoe: fork");
-    	cleanup_and_exit(1);
-    }
+    while (1) {
+	    FD_ZERO(&allfdset);
+	    FD_SET(sess_sock, &allfdset);
+	    FD_SET(disc_sock, &allfdset);
+	    FD_SET(0, &allfdset);
+	    if (select((sess_sock>disc_sock?sess_sock:disc_sock) + 1, &allfdset, 
+                    (fd_set *) NULL, (fd_set *) NULL, NULL) <= 0)
+            continue; /* timeout or error */
 
-    /* wait for all children to die */
-    /* this is not perfect - race conditions on dying children are still
-       possible */
-    while(1) {
-	if (waitpid((pid_t)-1,NULL,WNOHANG) < 0 && errno == ECHILD)
-	    break; /* all children dead */
-	if (read_packet(disc_sock, packet, &pkt_size) == disc_sock) {
-        /*  wklin modified, 03/23/2007, check PADT session ID */
-        /*  wklin added start, 07/26/2007 */
-        if (packet->code == CODE_PADT)
-            fprintf(stderr, "PPPOE: PADT received (%08x/%08x)\n", 
-                    packet->session, session);
-        /*  wklin added end, 07/26/2007 */
-	    if (packet->code == CODE_PADT && packet->session == session)
-	    {
-		    cleanup_and_exit(1);
-	    }
-	}
-	/* clean up any dead children */
-	while (waitpid((pid_t)-1,NULL,WNOHANG) > 0)
-	    ;
+        if (FD_ISSET(disc_sock, &allfdset)) {
+#ifdef MULTIPLE_PPPOE
+            if (read_packet_nowait(disc_sock, packet, &pkt_size) == disc_sock) {
+		        if (memcmp(packet->ethhdr.h_dest, src_addr, sizeof(src_addr))!=0){
+		            /* fprintf(stderr, "pppoe: received a packet not for
+		            * me.\n");*/
+		            continue;
+		        }
+                if (packet->code == CODE_PADT && packet->session == session) {
+                    time(&tm);
+                    fprintf(stderr, "PPPOE%d: PADT received (%d) %s\n", ppp_ifunit, ntohs(session), ctime(&tm));
+                    break; /* go terminate */
+		        }
+            }   
+#else
+            if ((read_packet2(disc_sock, packet, &pkt_size) == disc_sock) &&
+	       (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr))==0)){
+                if (packet->code == CODE_PADT) {
+                    time(&tm);
+                    fprintf(stderr, "PPPOE: PADT received (%d/%d), %s\n", 
+                        ntohs(packet->session), ntohs(session),ctime(&tm));
+                } 
+                if (packet->code == CODE_PADT && packet->session == session)
+                    break; /* cleanup and exit */
+            }   
+#endif
+        }
 
-    }
-    /*  added start, Winster Chan, 06/26/2006 */
-    close(pppfd); pppfd = -1;
-    close(poxfd); poxfd = -1;
-    /*  added end, Winster Chan, 06/26/2006 */
+        if (FD_ISSET(sess_sock, &allfdset)) {
+            sess_handler();
+        }
 
+        if (FD_ISSET(0, &allfdset)) {
+            pppd_handler();
+        }
+    }   
+    cleanup_and_exit(0); /*  wklin added, 08/10/2007 */
     return 0;
 }
+
+
