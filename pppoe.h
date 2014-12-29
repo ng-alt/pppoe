@@ -86,7 +86,7 @@ struct ifreq
 # define _IOT_ifreq_int	_IOT(_IOTS(char),IFNAMSIZ,_IOTS(int),1,0,0)
 
 
-/*  added start, Winster Chan, 06/26/2006 */
+/* Foxconn added start, Winster Chan, 06/26/2006 */
 #include <linux/types.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
@@ -150,9 +150,9 @@ struct sockaddr_pppox {
 
 
 void pptp_pppox_open(int *poxfd, int *pppfd);
-int pptp_pppox_connect(int *poxfd, int *pppfd); /*  wklin modified,
+int pptp_pppox_connect(int *poxfd, int *pppfd); /* foxconn wklin modified,
                                                    07/31/2007 */
 struct sockaddr_pppox pptp_pppox_get_info(void);
 void pptp_pppox_release(int *poxfd, int *pppfd);
 
-/*  added end, pptp, Winster Chan, 06/26/2006 */
+/* Foxconn added end, pptp, Winster Chan, 06/26/2006 */

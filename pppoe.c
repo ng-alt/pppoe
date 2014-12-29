@@ -24,16 +24,16 @@
  */ 
 
 #include <sys/types.h>
-/*  wklin added start, 07/26/2007 */
+/* foxconn wklin added start, 07/26/2007 */
 #include <sys/stat.h>
-/*  wklin added end, 07/26/2007 */
+/* foxconn wklin added end, 07/26/2007 */
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h> /* wklin added, 01/10/2007 */
-/*  modified start Winster Chan 11/25/2005 */
+/* Foxconn modified start Winster Chan 11/25/2005 */
 /* #include <net/if.h> */
 #include "pppoe.h"
-/*  modified end Winster Chan 11/25/2005 */
+/* Foxconn modified end Winster Chan 11/25/2005 */
 #include <sys/sysinfo.h> /*added by EricHuang, 01/11/2007*/
 
 #ifdef __linux__
@@ -82,18 +82,18 @@ extern int errno;
 /* used as the size for a packet buffer */
 /* should be > 2 * size of max packet size */
 #define PACKETBUF (4096 + 30)
-/*  added start Winster Chan 11/25/2005 */
+/* Foxconn added start Winster Chan 11/25/2005 */
 #define TAGBUF 128
-/*  added end Winster Chan 11/25/2005 */
+/* Foxconn added end Winster Chan 11/25/2005 */
 
-/*  added start, Winster Chan, 06/26/2006 */
+/* Foxconn added start, Winster Chan, 06/26/2006 */
 static int poxfd = -1;
 static int pppfd = -1;
 unsigned short sessId = 0;
 char dstMac[ETH_ALEN];
-/*  added start, Winster Chan, 06/26/2006 */
+/* Foxconn added start, Winster Chan, 06/26/2006 */
 
-char *service_name = NULL; /*  wklin added, 03/27/2007 */
+char *service_name = NULL; /* foxconn wklin added, 03/27/2007 */
 
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 3
@@ -143,11 +143,11 @@ struct pppoe_tag {
     /* payload follows */
 } __attribute__ ((packed)); /*added by EricHuang, 07/23/2007*/
 
-/*  added start Winster Chan 11/25/2005 */
+/* Foxconn added start Winster Chan 11/25/2005 */
 #define TAG_STRUCT_SIZE  sizeof(struct pppoe_tag)
 #define PPP_PPPOE_SESSION   "/tmp/ppp/pppoe_session"
 /*#define PPP_PPPOE_IFNAME    "/tmp/ppp/pppoe_ifname"*/
-/*  added end Winster Chan 11/25/2005 */
+/* Foxconn added end Winster Chan 11/25/2005 */
 
 /* PPPoE tag types */
 #define TAG_END_OF_LIST        0x0000
@@ -175,7 +175,7 @@ char dst_addr[ETH_ALEN]; /* destination hardware address */
 char *if_name = NULL; /* interface to use */
 int session = 0; /* identifier for our session */
 int clean_child = 0; /* flag set when SIGCHLD received */
-/*  added start Winster Chan 11/25/2005 */
+/* Foxconn added start Winster Chan 11/25/2005 */
 char pado_tags[TAGBUF]; /* TAGs of PADO */
 int pado_tag_size = 0;
 typedef struct {
@@ -183,7 +183,7 @@ typedef struct {
     int             nPadLen;    /* Tag length in type of integer */
     char            *pPadStart; /* Start point of tag payload */
 } sPadxTag, *pPadxTag;
-/*  added end Winster Chan 11/25/2005 */
+/* Foxconn added end Winster Chan 11/25/2005 */
 
 /* Winster Chan debugtest */
 #define DEBUG_PRINT_PACKET  0
@@ -380,7 +380,7 @@ print_packet(struct pppoe_packet *p)
     }
 }
 
-/*  added start, Winster Chan, 06/26/2006 */
+/* Foxconn added start, Winster Chan, 06/26/2006 */
 /**************************************************************************
 ** Function:    addr_itox()
 ** Description: Convert the <int> address value getting from file to
@@ -430,11 +430,11 @@ void pptp_pppox_open(int *poxfd, int *pppfd)
 struct sockaddr_pppox pptp_pppox_get_info(void)
 {
     struct sockaddr_pppox sp_info;
-    /*  modified start pling 01/17/2007 */
+    /* Foxconn modified start pling 01/17/2007 */
     /* char devName[] = "eth0"; */
     char devName[16];
     strcpy(devName, if_name);
-    /*  modified end pling 01/17/2007 */
+    /* Foxconn modified end pling 01/17/2007 */
 
     memset(&sp_info, 0, sizeof(struct sockaddr_pppox));
 
@@ -456,7 +456,7 @@ struct sockaddr_pppox pptp_pppox_get_info(void)
 ** Return:      (int)err -- Fail = -1
 **                          Success = 0.
 **************************************************************************/
-/*  wklin modified start, 07/31/2007 */
+/* foxconn wklin modified start, 07/31/2007 */
 int  pptp_pppox_connect(int *poxfd, int *pppfd)
 {
     struct sockaddr_pppox lsp;
@@ -502,7 +502,7 @@ int  pptp_pppox_connect(int *poxfd, int *pppfd)
     }
     return 0;
 }
-/*  wklin modified end, 07/31/2007 */
+/* foxconn wklin modified end, 07/31/2007 */
 
 /**************************************************************************
 ** Function:    pptp_pppox_release()
@@ -526,7 +526,7 @@ void pptp_pppox_release(int *poxfd, int *pppfd)
             /* Detach from PPP */
     	    if (ioctl(*pppfd, PPPIOCDETACH) < 0)
                 ; /* fprintf(stderr, "pptp_pppox_release ioctl(PPPIOCDETACH)
-                     failed\n"); */ /*  wklin removed, 07/26/2007 */
+                     failed\n"); */ /* foxconn wklin removed, 07/26/2007 */
 	    }
 
         /* Release pptp kernel connection */
@@ -539,7 +539,7 @@ void pptp_pppox_release(int *poxfd, int *pppfd)
     else
         fprintf(stderr, "Couldn't connect socket to pppox\n");
 }
-/*  added end, Winster Chan, 06/26/2006 */
+/* Foxconn added end, Winster Chan, 06/26/2006 */
 
 int
 open_interface(char *if_name, unsigned short type, char *hw_addr)
@@ -764,7 +764,7 @@ open_interface(char *if_name, unsigned short type, char *hw_addr)
 #endif /* USE_BPF / linux */
 }
 
-/*  added start Winster Chan 12/02/2005 */
+/* Foxconn added start Winster Chan 12/02/2005 */
 int
 get_padx_tag(struct pppoe_tag *pTag, int nLen, pPadxTag pTagStruc, const unsigned short tagType)
 {
@@ -793,7 +793,7 @@ get_padx_tag(struct pppoe_tag *pTag, int nLen, pPadxTag pTagStruc, const unsigne
 
     return bTagFound;
 }
-/*  added end Winster Chan 12/02/2005 */
+/* Foxconn added end Winster Chan 12/02/2005 */
 
 int
 create_padi(struct pppoe_packet *packet, const char *src, const char *name)
@@ -839,19 +839,19 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
 	    char *name)
 {
     int size;
-    /*  added start Winster Chan 11/25/2005 */
+    /* Foxconn added start Winster Chan 11/25/2005 */
     char *pCookieStart = NULL;
     int nCookieSize = 0;
     int nNameSize = 0;
     unsigned short usCookieSize = 0;
     sPadxTag sTag;
-    /*  added end Winster Chan 11/25/2005 */
-    /*  add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
+    /* Foxconn added end Winster Chan 11/25/2005 */
+    /* Foxconn add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
     char *pRelaySessionIdStart = NULL;
     int nRelaySessionIdSize = 0;
     unsigned short usRelaySessionIdSize = 0;
     char *pPacketPoint = packet;
-    /*  add end, Max Ding, 09/22/2008 */
+    /* Foxconn add end, Max Ding, 09/22/2008 */
 
     if (packet == NULL)
 	return 0;
@@ -859,12 +859,12 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
     size = sizeof(struct pppoe_packet) + TAG_STRUCT_SIZE;
     if (name != NULL) {
     	size += strlen(name);
-        /*  added start Winster Chan 11/25/2005 */
+        /* Foxconn added start Winster Chan 11/25/2005 */
         nNameSize = strlen(name);
-        /*  added end Winster Chan 11/25/2005 */
+        /* Foxconn added end Winster Chan 11/25/2005 */
     }
 
-    /*  added start Winster Chan 12/02/2005 */
+    /* Foxconn added start Winster Chan 12/02/2005 */
     /* Add length of AC cookie to packet size */
     if (get_padx_tag((struct pppoe_tag *)pado_tags, pado_tag_size, &sTag, TAG_AC_COOKIE)) {
         nCookieSize = sTag.nPadLen;
@@ -872,15 +872,15 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
         pCookieStart = sTag.pPadStart;
         size += (int)(TAG_STRUCT_SIZE + sTag.nPadLen);
     }
-    /*  added end Winster Chan 12/02/2005 */
-    /*  add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
+    /* Foxconn added end Winster Chan 12/02/2005 */
+    /* Foxconn add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
     if (get_padx_tag((struct pppoe_tag *)pado_tags, pado_tag_size, &sTag, TAG_RELAY_SESSION_ID)) {
         nRelaySessionIdSize = sTag.nPadLen;
         usRelaySessionIdSize = sTag.usPadLen;
         pRelaySessionIdStart = sTag.pPadStart;
         size += (int)(TAG_STRUCT_SIZE + sTag.nPadLen);
     }
-    /*  add end, Max Ding, 09/22/2008 */
+    /* Foxconn add end, Max Ding, 09/22/2008 */
 
 #ifdef __linux__
     memcpy(packet->ethhdr.h_dest, dst, 6);
@@ -904,9 +904,9 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
 	memcpy((char *)(packet + 1) + TAG_STRUCT_SIZE, name,
 	       strlen(name));
 
-    pPacketPoint = (char *)(packet+1)+TAG_STRUCT_SIZE+nNameSize;/*  added by Max Ding, 09/23/2008 @add TAG_RELAY_SESSION_ID */
-    /*  modified start, wklin, 03/27/2007, winster doesn't count name len */
-    /*  added start Winster Chan 11/25/2005 */
+    pPacketPoint = (char *)(packet+1)+TAG_STRUCT_SIZE+nNameSize;/* Foxconn added by Max Ding, 09/23/2008 @add TAG_RELAY_SESSION_ID */
+    /* foxconn modified start, wklin, 03/27/2007, winster doesn't count name len */
+    /* Foxconn added start Winster Chan 11/25/2005 */
     /* fill out the AC cookie tag from PADO */
     if (nCookieSize > 0) {
         (*(struct pppoe_tag *)((char *)(packet+1)+TAG_STRUCT_SIZE+
@@ -915,11 +915,11 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
                                nNameSize)).length = usCookieSize;
         memcpy((char *)(packet+1)+(2*TAG_STRUCT_SIZE)+nNameSize,
             (char *)pCookieStart, nCookieSize);
-        pPacketPoint = (char *)(packet+1)+(2*TAG_STRUCT_SIZE)+nNameSize+nCookieSize;/*  added by Max Ding, 09/23/2008 @add TAG_RELAY_SESSION_ID */
+        pPacketPoint = (char *)(packet+1)+(2*TAG_STRUCT_SIZE)+nNameSize+nCookieSize;/* Foxconn added by Max Ding, 09/23/2008 @add TAG_RELAY_SESSION_ID */
     }
-    /*  added end Winster Chan 11/25/2005 */
-    /*  modified end, wklin, 03/27/2007 */
-    /*  add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
+    /* Foxconn added end Winster Chan 11/25/2005 */
+    /* foxconn modified end, wklin, 03/27/2007 */
+    /* Foxconn add start, Max Ding, 09/22/2008 for @add TAG_RELAY_SESSION_ID */
     if (nRelaySessionIdSize > 0) {
         (*(struct pppoe_tag *)(pPacketPoint)).type = htons(TAG_RELAY_SESSION_ID);
         (*(struct pppoe_tag *)(pPacketPoint)).length = usRelaySessionIdSize;
@@ -927,13 +927,13 @@ create_padr(struct pppoe_packet *packet, const char *src, const char *dst,
             (char *)pRelaySessionIdStart, nRelaySessionIdSize);
         pPacketPoint += TAG_STRUCT_SIZE + nRelaySessionIdSize;
     }
-    /*  add end, Max Ding, 09/22/2008 */
+    /* Foxconn add end, Max Ding, 09/22/2008 */
 
     memset(((char *)packet) + size, 0, 14);
     return size;
 }
 
-/*  added end Winster Chan 12/02/2005 */
+/* Foxconn added end Winster Chan 12/02/2005 */
 int
 create_padt(struct pppoe_packet *packet, const char *src, const char *dst, unsigned short nSessId)
 {
@@ -988,7 +988,7 @@ create_padt(struct pppoe_packet *packet, const char *src, const char *dst, unsig
     memset(((char *)packet) + size, 0, 14);
     return size;
 }
-/*  added end Winster Chan 12/02/2005 */
+/* Foxconn added end Winster Chan 12/02/2005 */
 
 unsigned short fcstab[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
@@ -1135,7 +1135,7 @@ create_sess(struct pppoe_packet *packet, const char *src, const char *dst,
     	}
     	else
     	{
-    	    /* fprintf(error_file, "create_sess: invalid data\n"); */ /*  wklin
+    	    /* fprintf(error_file, "create_sess: invalid data\n"); */ /* foxconn wklin
                                                                          removed,
                                                                          07/26/2007
                                                                          */
@@ -1414,11 +1414,11 @@ void sigchild(int src) {
 }
 
 void cleanup_and_exit(int status) {
-    /*  modified start, Winster Chan, 06/26/2006 */
+    /* Foxconn modified start, Winster Chan, 06/26/2006 */
     pptp_pppox_release(&poxfd, &pppfd);
     close(pppfd); pppfd = -1;
     close(poxfd); poxfd = -1;
-    /*  modified end, Winster Chan, 06/26/2006 */
+    /* Foxconn modified end, Winster Chan, 06/26/2006 */
 
     close(disc_sock);
     close(sess_sock);
@@ -1442,14 +1442,14 @@ void cleanup_and_exit(int status) {
         kill(SIGTERM, sess_listen);
 #endif
     }
-    /* system("killall pppoecd"); */ /*  added, Winster Chan, 06/26/2006
-                                      */ /*  wklin removed, 07/26/2007 */
+    /* system("killall pppoecd"); */ /* Foxconn added, Winster Chan, 06/26/2006
+                                      */ /* foxconn wklin removed, 07/26/2007 */
     exit(status);
 }
 
 void sigint(int src)
 {
-    /*  added start Winster Chan 12/02/2005 */
+    /* Foxconn added start Winster Chan 12/02/2005 */
     struct pppoe_packet *packet = NULL;
     int pkt_size;
     FILE *fp;
@@ -1468,12 +1468,12 @@ void sigint(int src)
             fprintf(stderr, "pppoe: unable to send PADT packet\n");
             /* exit(1); */
         }  else {
-            fprintf(stderr, "PPPOE: PADT sent*\n"); /*  wklin added, 07/26/2007 */
+            fprintf(stderr, "PPPOE: PADT sent*\n"); /* foxconn wklin added, 07/26/2007 */
         }
     }
-    /*  added end Winster Chan 12/02/2005 */
+    /* Foxconn added end Winster Chan 12/02/2005 */
 
-    /*  added start Winster Chan 12/05/2005 */
+    /* Foxconn added start Winster Chan 12/05/2005 */
     if (!(fp = fopen(PPP_PPPOE_SESSION, "w"))) {
         perror(PPP_PPPOE_SESSION);
     }
@@ -1483,12 +1483,12 @@ void sigint(int src)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0);
         fclose(fp);
     }
-    /*  added end Winster Chan 12/05/2005 */
+    /* Foxconn added end Winster Chan 12/05/2005 */
     cleanup_and_exit(1);
 }
 
 #ifdef NEW_WANDETECT
-/* added start James 11/12/2008 @new_internet_detection*/ 
+/*Foxconn added start James 11/12/2008 @new_internet_detection*/ 
 void sigint2(int src)
 {
     struct pppoe_packet *packet = NULL;
@@ -1509,12 +1509,12 @@ void sigint2(int src)
         /* exit(1); */
     }  else {
         time(&tm);
-        fprintf(stderr, "PPPOE: PADT sent* %s\n",ctime(&tm)); /*  wklin added, 07/26/2007 */
+        fprintf(stderr, "PPPOE: PADT sent* %s\n",ctime(&tm)); /* foxconn wklin added, 07/26/2007 */
     }
 
-    /*  added end Winster Chan 12/02/2005 */
+    /* Foxconn added end Winster Chan 12/02/2005 */
 
-    /*  added start Winster Chan 12/05/2005 */
+    /* Foxconn added start Winster Chan 12/05/2005 */
     if (!(fp = fopen(PPP_PPPOE_SESSION, "w"))) {
         perror(PPP_PPPOE_SESSION);
     }
@@ -1524,11 +1524,11 @@ void sigint2(int src)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0);
         fclose(fp);
     }
-    /*  added end Winster Chan 12/05/2005 */
+    /* Foxconn added end Winster Chan 12/05/2005 */
     cleanup_and_exit(1);
     
 }
-/*  added end James 11/12/2008 @new_internet_detection */ 
+/* Foxconn added end James 11/12/2008 @new_internet_detection */ 
 #endif
 
 void sess_handler(void) {
@@ -1553,7 +1553,7 @@ void sess_handler(void) {
     packet = malloc(PACKETBUF);
     assert(packet != NULL);
 
-    /* fprintf(error_file, "sess_handler %d\n", getpid()); */ /*  wklin
+    /* fprintf(error_file, "sess_handler %d\n", getpid()); */ /* foxconn wklin
                                                                  removed,
                                                                  07/27/2007 */
     while(1)
@@ -1615,7 +1615,7 @@ void pppd_handler(void) {
   int i, bufRemain = 0, bufPos;
   unsigned char *currBufStart;
 
-  /* fprintf(error_file, "pppd_handler %d\n", getpid()); */ /*  wklin
+  /* fprintf(error_file, "pppd_handler %d\n", getpid()); */ /* foxconn wklin
                                                                removed,
                                                                07/27/2007 */
 
@@ -1632,10 +1632,10 @@ void pppd_handler(void) {
       exit(1);
     }
     if (len == 0) {
-      /*  wklin modified start, 07/27/2007 */
+      /* foxconn wklin modified start, 07/27/2007 */
       /* fprintf(error_file, "pppd_handler: read packet len = 0 bytes\n"); */
       usleep(10000); /* sleep 10ms */
-      /*  wklin modified end, 07/27/2007 */
+      /* foxconn wklin modified end, 07/27/2007 */
       continue;
     }
     /* Append the length of previous remained data */
@@ -1706,27 +1706,27 @@ int main(int argc, char **argv)
 {
     struct pppoe_packet *packet = NULL;
     int pkt_size;
-    /*  added start Winster Chan 12/05/2005 */
+    /* Foxconn added start Winster Chan 12/05/2005 */
     FILE *fp;
     char buf[64];
-    /*  added end Winster Chan 12/05/2005 */
+    /* Foxconn added end Winster Chan 12/05/2005 */
     int fd; /* wklin added, 07/26/2007 */
 
     int opt;
-    int ret_sock; /*  wklin added, 12/27/2007 */
-    time_t tm; /*  wklin added, 12/27/2007 */
+    int ret_sock; /* foxconn wklin added, 12/27/2007 */
+    time_t tm; /* foxconn wklin added, 12/27/2007 */
 
     /* initialize error_file here to avoid glibc2.1 issues */
      error_file = stderr;
 
-    /*  wklin added start, 07/26/2007 */
+    /* foxconn wklin added start, 07/26/2007 */
     fd = open("/dev/console", O_WRONLY);
     if (fd != -1)
         dup2(fd, 2);
-    /*  wklin added end, 07/26/2007 */
+    /* foxconn wklin added end, 07/26/2007 */
 
     /* parse options */
-    /*  wklin modified, 03/27/2007, add service name option S */
+    /* foxconn wklin modified, 03/27/2007, add service name option S */
     while ((opt = getopt(argc, argv, "I:L:VE:F:S:")) != -1)
 	switch(opt)
 	{
@@ -1742,7 +1742,7 @@ int main(int argc, char **argv)
 	case 'I': /* sets interface */
 	    if (if_name != NULL)
 		free(if_name);
-        /*  wklin modified, 03/27/2007 */
+        /* foxconn wklin modified, 03/27/2007 */
 	    if ((if_name=malloc(strlen(optarg)+1)) == NULL)
 	    {
 		fprintf(stderr, "malloc\n");
@@ -1790,7 +1790,7 @@ int main(int argc, char **argv)
 		exit(1);
 	    }
 	    break;
-        /*  wklin added start, 03/27/2007, service name */
+        /* foxconn wklin added start, 03/27/2007, service name */
 	case 'S': /* set service name*/
 	    if (service_name != NULL)
 		    free(service_name);
@@ -1800,14 +1800,14 @@ int main(int argc, char **argv)
 	    }
 	    strcpy(service_name, optarg);
 	    break;
-        /*  wklin added end, 03/27/2007 */
+        /* foxconn wklin added end, 03/27/2007 */
 	default:
 	    fprintf(stderr, "Unknown option %c\n", optopt);
 	    exit(1);
 	}
 
-    /*  added start, Winster Chan, 06/26/2006 */
-    /*  removed start pling 01/17/2007, not necessary */
+    /* Foxconn added start, Winster Chan, 06/26/2006 */
+    /* Foxconn removed start pling 01/17/2007, not necessary */
 #if 0   
     char poeIfName[32];
     if (!(fp = fopen(PPP_PPPOE_IFNAME, "r"))) {
@@ -1829,8 +1829,8 @@ int main(int argc, char **argv)
         strcpy(if_name, poeIfName);
     }
 #endif
-    /*  removed end pling 01/17/2007, not necessary */
-    /*  added end, Winster Chan, 06/26/2006 */
+    /* Foxconn removed end pling 01/17/2007, not necessary */
+    /* Foxconn added end, Winster Chan, 06/26/2006 */
     /* allocate packet once */
     packet = malloc(PACKETBUF);
     assert(packet != NULL);
@@ -1840,12 +1840,12 @@ int main(int argc, char **argv)
     signal(SIGINT, sigint);
     signal(SIGTERM, sigint);
 #ifdef NEW_WANDETECT
-    signal(SIGUSR1, sigint2);/* added James 11/11/2008 @new_internet_detection*/
+    signal(SIGUSR1, sigint2);/*Foxconn added James 11/11/2008 @new_internet_detection*/
 #endif
 
-    /*  added start, Winster Chan, 06/26/2006 */
+    /* Foxconn added start, Winster Chan, 06/26/2006 */
     pptp_pppox_open(&poxfd, &pppfd);
-    /*  added end, Winster Chan, 06/26/2006 */
+    /* Foxconn added end, Winster Chan, 06/26/2006 */
 
     if ((disc_sock = open_interface(if_name,ETH_P_PPPOE_DISC,src_addr)) < 0)
     {
@@ -1855,9 +1855,9 @@ int main(int argc, char **argv)
 
     /* initiate connection */
 
-    /*  added start Winster Chan 12/05/2005 */
+    /* Foxconn added start Winster Chan 12/05/2005 */
     if (!(fp = fopen(PPP_PPPOE_SESSION, "r"))) {
-        ; /* perror(PPP_PPPOE_SESSION);*/ /* wklin removed, 08/13/2007 */
+        ; /* perror(PPP_PPPOE_SESSION);*/ /*foxconn wklin removed, 08/13/2007 */
     }
     else {
         unsigned int nMacAddr[ETH_ALEN];
@@ -1896,20 +1896,20 @@ int main(int argc, char **argv)
           	        fprintf(stderr, "pppoe: unable to create PADT packet\n");
                     fclose(fp);
                     /*exit(1);*/
-                    cleanup_and_exit(1); /*  modified by EricHuang, 05/24/2007 */
+                    cleanup_and_exit(1); /* foxconn modified by EricHuang, 05/24/2007 */
                 }
                 if (send_packet(disc_sock, packet, pkt_size+14, if_name) < 0) {
                     fprintf(stderr, "pppoe: unable to send PADT packet\n");
                     fclose(fp);
                     /*exit(1);*/
-                    cleanup_and_exit(1); /*  modified by EricHuang, 05/24/2007 */
+                    cleanup_and_exit(1); /* foxconn modified by EricHuang, 05/24/2007 */
                 } else {
-                    fprintf(stderr, "PPPOE: PADT sent\n"); /*  wklin added, 07/26/2007 */
+                    fprintf(stderr, "PPPOE: PADT sent\n"); /* foxconn wklin added, 07/26/2007 */
                 }
 
-                /*  modified start, Winster Chan, 06/26/2006 */
-                /*pptp_pppox_release(&poxfd, &pppfd);*/ /*  removed by EricHuang, 05/24/2007 */
-                /*  modified end, Winster Chan, 06/26/2006 */
+                /* Foxconn modified start, Winster Chan, 06/26/2006 */
+                /*pptp_pppox_release(&poxfd, &pppfd);*/ /* foxconn removed by EricHuang, 05/24/2007 */
+                /* Foxconn modified end, Winster Chan, 06/26/2006 */
 
                 /* Waiting 3 seconds for server finishing the termination */
                 sleep(3);
@@ -1917,10 +1917,10 @@ int main(int argc, char **argv)
         }
         fclose(fp);
     }
-    /*  added end Winster Chan 12/05/2005 */
+    /* Foxconn added end Winster Chan 12/05/2005 */
 
     /* start the PPPoE session */
-    /*  wklin modified, 03/27/2007, add service name */
+    /* foxconn wklin modified, 03/27/2007, add service name */
     if ((pkt_size = create_padi(packet, src_addr, service_name)) == 0) {
 	fprintf(stderr, "pppoe: unable to create PADI packet\n");
 	exit(1);
@@ -1931,23 +1931,23 @@ int main(int argc, char **argv)
 	exit(1);
     }
 
-    time(&tm); /*  wklin added, 12/27/2007, for storing PADI time */
+    time(&tm); /* foxconn wklin added, 12/27/2007, for storing PADI time */
     /* wait for PADO */
     while ((ret_sock = read_packet(disc_sock, packet, &pkt_size)) != disc_sock ||
-	   (packet->code != CODE_PADO )) { /*  wklin modified, 12/27/2007 */
+	   (packet->code != CODE_PADO )) { /* foxconn wklin modified, 12/27/2007 */
 	fprintf(log_file, "pppoe: unexpected packet %x\n",
 		packet->code);
-	/*  wklin added start, 12/27/2007 */
+	/* foxconn wklin added start, 12/27/2007 */
 	if (ret_sock == disc_sock && 
 		(packet->code == CODE_PADI || packet->code == CODE_PADR)) {
 	    if (time(NULL) - tm < 3)
 	       continue;
 	}
-	/*  wklin added end, 12/27/2007 */
+	/* foxconn wklin added end, 12/27/2007 */
 	/* wklin added start, 01/10/2007 */
     	/* fprintf(stderr, "pppoe: resend PADI\n"); */
     	/* start the PPPoE session */
-        /*  wklin modified, 03/27/2007, add service name */
+        /* foxconn wklin modified, 03/27/2007, add service name */
     	if ((pkt_size = create_padi(packet, src_addr, service_name)) == 0) {
 		fprintf(stderr, "pppoe: unable to create PADI packet\n");
 		exit(1);
@@ -1957,28 +1957,28 @@ int main(int argc, char **argv)
 		fprintf(stderr, "pppoe: unable to send PADI packet\n");
 		exit(1);
     	}
-	time(&tm); /*  added, 12/27/2007, for storing PADI time */
+	time(&tm); /* foxconn added, 12/27/2007, for storing PADI time */
 	/* wklin added end, 01/10/2007 */
 	continue;
     }
 
-    /*  added start pling 12/20/2006 */
+    /* Foxconn added start pling 12/20/2006 */
     /* Touch a file on /tmp to indicate PADO is received */
     if (1)
     {
         FILE *fp;
         struct sysinfo info;
-        /*  wklin modified start, 07/26/2007 */
+        /* foxconn wklin modified start, 07/26/2007 */
         /* system("echo \"DEBUG: PADO received\" > /dev/console"); */
         fprintf(stderr, "PPPOE: PADO received\n");
-        /*  wklin modified end, 07/26/2007 */
+        /* foxconn wklin modified end, 07/26/2007 */
         if ((fp = fopen("/tmp/PADO", "w")) != NULL) {
             sysinfo(&info);  /* save current time in file */
             fprintf(fp, "%ld", info.uptime);
             fclose(fp);
         }
     }
-    /*  added end ling 12/20/2006 */
+    /* Foxconn added end ling 12/20/2006 */
 
 
 #ifdef __linux__
@@ -1986,7 +1986,7 @@ int main(int argc, char **argv)
 #else
     memcpy(dst_addr, packet->ethhdr.ether_shost, sizeof(dst_addr));
 #endif
-    /*  added start Winster Chan 11/25/2005 */
+    /* Foxconn added start Winster Chan 11/25/2005 */
     /* Stored tags of PADO */
     memset(pado_tags, 0x0, sizeof(pado_tags));
     if ((htons(packet->length) < 0) || (htons(packet->length) > sizeof(pado_tags))) {
@@ -1996,10 +1996,10 @@ int main(int argc, char **argv)
         pado_tag_size = (int)(htons(packet->length));
     }
     memcpy((char *)pado_tags, (char *)(packet + 1), pado_tag_size);
-    /*  added end Winster Chan 11/25/2005 */
+    /* Foxconn added end Winster Chan 11/25/2005 */
 
     /* send PADR */
-    /*  wklin modified, 03/27/2007, add service name */
+    /* foxconn wklin modified, 03/27/2007, add service name */
     if ((pkt_size = create_padr(packet, src_addr, dst_addr, service_name)) == 0) {
 	fprintf(stderr, "pppoe: unable to create PADR packet\n");
 	exit(1);
@@ -2013,7 +2013,7 @@ int main(int argc, char **argv)
 #ifdef __linux__
     while (read_packet(disc_sock, packet, &pkt_size) != disc_sock ||
 	   (memcmp(packet->ethhdr.h_source, dst_addr, sizeof(dst_addr)) != 0) || 
-       (packet->code != CODE_PADS && packet->code != CODE_PADT)) /*  wklin modified, 08/09/2007 */
+       (packet->code != CODE_PADS && packet->code != CODE_PADT)) /* foxconn wklin modified, 08/09/2007 */
 #else
     while (read_packet(disc_sock, packet, &pkt_size) != disc_sock ||
 	   (memcmp(packet->ethhdr.ether_shost,
@@ -2021,15 +2021,15 @@ int main(int argc, char **argv)
 #endif
     {
         static int retried=0; /* wklin added, 01/26/2007 */
-        /*  wklin removed start, 08/09/2007 */
+        /* foxconn wklin removed start, 08/09/2007 */
 	    /* if (packet->code != CODE_PADS && packet->code != CODE_PADT)
 	    fprintf(log_file, "pppoe: unexpected packet %x\n", packet->code);
         */
-        /*  wklin removed end, 08/09/2007 */
+        /* foxconn wklin removed end, 08/09/2007 */
 
 	    /* wklin modified start, 01/26/2007 */
     	/* send PADR */
-        /*  wklin modified, 03/27/2007, add service name */
+        /* foxconn wklin modified, 03/27/2007, add service name */
         if ((pkt_size = create_padr(packet, src_addr, dst_addr, service_name)) == 0) {
 	    fprintf(stderr, "pppoe: unable to create PADR packet\n");
             exit(1);
@@ -2047,7 +2047,7 @@ int main(int argc, char **argv)
         continue;
     }
 
-    /*  James added start, 11/12/2008 @new_internet_detection */
+    /* foxconn James added start, 11/12/2008 @new_internet_detection */
 #ifdef NEW_WANDETECT
     if (packet->code == CODE_PADS)
     {
@@ -2063,7 +2063,7 @@ int main(int argc, char **argv)
         }
     }
 #endif
-    /*  James added end, 11/12/2008 @new_internet_detection */
+    /* foxconn James added end, 11/12/2008 @new_internet_detection */
 
 
     if (packet->code == CODE_PADT) /* early termination */
@@ -2073,32 +2073,32 @@ int main(int argc, char **argv)
 
     session = packet->session;
 
-    /*  wklin added start, 07/31/2007 */
+    /* foxconn wklin added start, 07/31/2007 */
     if (session == 0) { /* PADS generic error */
         sleep(3); /* wait for 3 seconds and exit, retry */
 	    cleanup_and_exit(0);
     }
 
     /* fprintf(stderr, "PPPOE: session id = 0x%08x\n", session); */
-    /*  wklin added end, 07/31/2007 */
+    /* foxconn wklin added end, 07/31/2007 */
 
     if ((sess_sock = open_interface(if_name,ETH_P_PPPOE_SESS,NULL)) < 0) {
     	fprintf(log_file, "pppoe: unable to create raw socket\n");
     	cleanup_and_exit(1);
     }
 
-    /*  added start, Winster Chan, 06/26/2006 */
+    /* Foxconn added start, Winster Chan, 06/26/2006 */
     memcpy(dstMac, dst_addr, ETH_ALEN);
     sessId = packet->session;
 
     /* Connect pptp kernel module */
-    /*  wklin modified start, 07/31/2007 */
+    /* foxconn wklin modified start, 07/31/2007 */
     if ( 0 > pptp_pppox_connect(&poxfd, &pppfd))
         cleanup_and_exit(1);
-    /*  wklin modified end, 07/31/2007 */
-    /*  added end, Winster Chan, 06/26/2006 */
+    /* foxconn wklin modified end, 07/31/2007 */
+    /* Foxconn added end, Winster Chan, 06/26/2006 */
 
-    /*  added start Winster Chan 12/05/2005 */
+    /* Foxconn added start Winster Chan 12/05/2005 */
     if (!(fp = fopen(PPP_PPPOE_SESSION, "w"))) {
         perror(PPP_PPPOE_SESSION);
     }
@@ -2111,7 +2111,7 @@ int main(int argc, char **argv)
             (int)htons(session));
         fclose(fp);
     }
-    /*  added end Winster Chan 12/05/2005 */
+    /* Foxconn added end Winster Chan 12/05/2005 */
 
     clean_child = 0;
     signal(SIGCHLD, sigchild);
@@ -2141,12 +2141,12 @@ int main(int argc, char **argv)
 	if (waitpid((pid_t)-1,NULL,WNOHANG) < 0 && errno == ECHILD)
 	    break; /* all children dead */
 	if (read_packet(disc_sock, packet, &pkt_size) == disc_sock) {
-        /*  wklin modified, 03/23/2007, check PADT session ID */
-        /*  wklin added start, 07/26/2007 */
+        /* foxconn wklin modified, 03/23/2007, check PADT session ID */
+        /* foxconn wklin added start, 07/26/2007 */
         if (packet->code == CODE_PADT)
             fprintf(stderr, "PPPOE: PADT received (%08x/%08x)\n", 
                     packet->session, session);
-        /*  wklin added end, 07/26/2007 */
+        /* foxconn wklin added end, 07/26/2007 */
 	    if (packet->code == CODE_PADT && packet->session == session)
 	    {
 		    cleanup_and_exit(1);
@@ -2157,10 +2157,10 @@ int main(int argc, char **argv)
 	    ;
 
     }
-    /*  added start, Winster Chan, 06/26/2006 */
+    /* Foxconn added start, Winster Chan, 06/26/2006 */
     close(pppfd); pppfd = -1;
     close(poxfd); poxfd = -1;
-    /*  added end, Winster Chan, 06/26/2006 */
+    /* Foxconn added end, Winster Chan, 06/26/2006 */
 
     return 0;
 }
